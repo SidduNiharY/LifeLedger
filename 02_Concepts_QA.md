@@ -64,20 +64,20 @@ class BillReminder:
         self.paid = False
 
     @workflow.signal
-    def mark_paid(self):            # sent when a matching UPI payment arrives
+    def mark_paid(self):  # sent when a matching UPI payment arrives
         self.paid = True
 
     @workflow.run
-    async def run(self, bill: Bill):    # Bill is a Pydantic v2 model
+    async def run(self, bill: Bill):  # Bill is a Pydantic v2 model
         for days_before in (7, 1, 0):
             remind_at = bill.due_at - timedelta(days=days_before)
             try:
-                await workflow.wait_condition(lambda: self.paid,
-                                              timeout=remind_at - workflow.now())
-                return "closed: payment matched"      # paid, so stop reminding
+                await workflow.wait_condition(lambda: self.paid, timeout=remind_at - workflow.now())
+                return "closed: payment matched"  # paid, so stop reminding
             except asyncio.TimeoutError:
-                await workflow.execute_activity(send_telegram_reminder, bill,
-                                                start_to_close_timeout=timedelta(minutes=1))
+                await workflow.execute_activity(
+                    send_telegram_reminder, bill, start_to_close_timeout=timedelta(minutes=1)
+                )
 ```
 
 **Without Temporal** you would use a cron job, keep "already reminded?" flags in Postgres, and write your own retry and recovery code. That is where reminders get sent twice or never.

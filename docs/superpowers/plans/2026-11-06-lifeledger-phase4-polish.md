@@ -63,34 +63,125 @@ from app.ledger.models import Transaction
 from app.ledger.schemas import Direction
 
 TODAY = date(2026, 11, 1)
+
+
 def charges(key, *items, category=C.SUBSCRIPTIONS):
-    return [Transaction(id=i, direction=Direction.DEBIT, merchant_key=key, amount=Decimal(a), occurred_on=d, category=category)
-            for i, (a, d) in enumerate(items)]
+    return [
+        Transaction(
+            id=i,
+            direction=Direction.DEBIT,
+            merchant_key=key,
+            amount=Decimal(a),
+            occurred_on=d,
+            category=category,
+        )
+        for i, (a, d) in enumerate(items)
+    ]
 
-NETFLIX = charges("NETFLIX", ("649.00", date(2026, 8, 4)), ("649.00", date(2026, 9, 4)), ("649.00", date(2026, 10, 4)))
 
-@pytest.mark.parametrize("txns,keys", [
-    (NETFLIX, ["NETFLIX"]),
-    (charges("NETFLIX", ("499.00", date(2026, 7, 4)), ("649.00", date(2026, 8, 4)), ("649.00", date(2026, 9, 4)), ("649.00", date(2026, 10, 4))), ["NETFLIX"]),
-    (charges("NETFLIX", ("649.00", date(2026, 8, 4)), ("649.00", date(2026, 9, 4)), ("799.00", date(2026, 10, 4))), []),
-    (charges("SWIGGY", ("300", date(2026, 10, 1)), ("410", date(2026, 10, 3)), ("280", date(2026, 10, 20)), ("350", date(2026, 11, 1)), category=C.FOOD), []),
-    (charges("NETFLIX", ("649.00", date(2026, 5, 4)), ("649.00", date(2026, 6, 4)), ("649.00", date(2026, 7, 4))), []),
-    (charges("LANDLORD", ("15000", date(2026, 8, 5)), ("15000", date(2026, 9, 5)), ("15000", date(2026, 10, 5)), category=C.RENT), []),
-])
+NETFLIX = charges(
+    "NETFLIX",
+    ("649.00", date(2026, 8, 4)),
+    ("649.00", date(2026, 9, 4)),
+    ("649.00", date(2026, 10, 4)),
+)
+
+
+@pytest.mark.parametrize(
+    "txns,keys",
+    [
+        (NETFLIX, ["NETFLIX"]),
+        (
+            charges(
+                "NETFLIX",
+                ("499.00", date(2026, 7, 4)),
+                ("649.00", date(2026, 8, 4)),
+                ("649.00", date(2026, 9, 4)),
+                ("649.00", date(2026, 10, 4)),
+            ),
+            ["NETFLIX"],
+        ),
+        (
+            charges(
+                "NETFLIX",
+                ("649.00", date(2026, 8, 4)),
+                ("649.00", date(2026, 9, 4)),
+                ("799.00", date(2026, 10, 4)),
+            ),
+            [],
+        ),
+        (
+            charges(
+                "SWIGGY",
+                ("300", date(2026, 10, 1)),
+                ("410", date(2026, 10, 3)),
+                ("280", date(2026, 10, 20)),
+                ("350", date(2026, 11, 1)),
+                category=C.FOOD,
+            ),
+            [],
+        ),
+        (
+            charges(
+                "NETFLIX",
+                ("649.00", date(2026, 5, 4)),
+                ("649.00", date(2026, 6, 4)),
+                ("649.00", date(2026, 7, 4)),
+            ),
+            [],
+        ),
+        (
+            charges(
+                "LANDLORD",
+                ("15000", date(2026, 8, 5)),
+                ("15000", date(2026, 9, 5)),
+                ("15000", date(2026, 10, 5)),
+                category=C.RENT,
+            ),
+            [],
+        ),
+    ],
+)
 def test_detect_subscriptions(txns, keys):
     assert [s.merchant_key for s in detect_subscriptions(txns, TODAY)] == keys
 
+
 def test_subscription_fields():
     [s] = detect_subscriptions(NETFLIX, TODAY)
-    assert s == Subscription(merchant_key="NETFLIX", amount=Decimal("649.00"), last_seen=date(2026, 10, 4),
-                             next_expected=date(2026, 11, 3), count=3)
+    assert s == Subscription(
+        merchant_key="NETFLIX",
+        amount=Decimal("649.00"),
+        last_seen=date(2026, 10, 4),
+        next_expected=date(2026, 11, 3),
+        count=3,
+    )
+
 
 def test_render_subscriptions():
-    subs = [Subscription(merchant_key="NETFLIX", amount=Decimal("649.00"), last_seen=date(2026, 10, 4), next_expected=date(2026, 11, 3), count=3),
-            Subscription(merchant_key="SPOTIFY", amount=Decimal("199.00"), last_seen=date(2026, 10, 14), next_expected=date(2026, 11, 14), count=3)]
-    assert render_subscriptions(subs) == ("🔁 Subscriptions (2), about ₹848.00 a month:\n"
-                                          "• NETFLIX ₹649.00, next around Tue 3 Nov\n• SPOTIFY ₹199.00, next around Sat 14 Nov")
-    assert render_subscriptions([]) == "No subscriptions found yet. I need 3 monthly charges from the same merchant."
+    subs = [
+        Subscription(
+            merchant_key="NETFLIX",
+            amount=Decimal("649.00"),
+            last_seen=date(2026, 10, 4),
+            next_expected=date(2026, 11, 3),
+            count=3,
+        ),
+        Subscription(
+            merchant_key="SPOTIFY",
+            amount=Decimal("199.00"),
+            last_seen=date(2026, 10, 14),
+            next_expected=date(2026, 11, 14),
+            count=3,
+        ),
+    ]
+    assert render_subscriptions(subs) == (
+        "🔁 Subscriptions (2), about ₹848.00 a month:\n"
+        "• NETFLIX ₹649.00, next around Tue 3 Nov\n• SPOTIFY ₹199.00, next around Sat 14 Nov"
+    )
+    assert (
+        render_subscriptions([])
+        == "No subscriptions found yet. I need 3 monthly charges from the same merchant."
+    )
 ```
 
 - [ ] **Step 2: Run them to see them fail**
@@ -139,15 +230,31 @@ from app.insights.subscriptions import Subscription
 
 TODAY = date(2026, 11, 6)
 
+
 def test_render_briefing_full():
-    b = Briefing(today=TODAY, yesterday_total=Decimal("1900.00"),
-                 yesterday_top=[("Food", Decimal("1650.00")), ("Bills", Decimal("250.00"))], month_total=Decimal("3200.50"),
-                 bills_due=[BillLine(id=14, name="Water", amount_due=Decimal("300.00"), due_on=date(2026, 11, 2)),
-                            BillLine(id=13, name="Passport renewal", amount_due=None, due_on=date(2026, 11, 9)),
-                            BillLine(id=12, name="Electricity", amount_due=Decimal("1250.50"), due_on=date(2026, 11, 13))],
-                 subscriptions_due=[Subscription(merchant_key="NETFLIX", amount=Decimal("649.00"), last_seen=date(2026, 10, 10),
-                                                 next_expected=date(2026, 11, 10), count=3)],
-                 pending_questions=2)
+    b = Briefing(
+        today=TODAY,
+        yesterday_total=Decimal("1900.00"),
+        yesterday_top=[("Food", Decimal("1650.00")), ("Bills", Decimal("250.00"))],
+        month_total=Decimal("3200.50"),
+        bills_due=[
+            BillLine(id=14, name="Water", amount_due=Decimal("300.00"), due_on=date(2026, 11, 2)),
+            BillLine(id=13, name="Passport renewal", amount_due=None, due_on=date(2026, 11, 9)),
+            BillLine(
+                id=12, name="Electricity", amount_due=Decimal("1250.50"), due_on=date(2026, 11, 13)
+            ),
+        ],
+        subscriptions_due=[
+            Subscription(
+                merchant_key="NETFLIX",
+                amount=Decimal("649.00"),
+                last_seen=date(2026, 10, 10),
+                next_expected=date(2026, 11, 10),
+                count=3,
+            )
+        ],
+        pending_questions=2,
+    )
     assert render_briefing(b) == (
         "☀️ Good morning! Fri 6 Nov\n"
         "Yesterday: ₹1,900.00 (Food ₹1,650.00, Bills ₹250.00)\n"
@@ -157,13 +264,24 @@ def test_render_briefing_full():
         "• #13 Passport renewal, Mon 9 Nov\n"
         "• #12 Electricity: ₹1,250.50, Fri 13 Nov\n"
         "Subscriptions this week: NETFLIX ₹649.00 (around Tue 10 Nov)\n"
-        "2 transactions need a category. Send /review")
+        "2 transactions need a category. Send /review"
+    )
+
 
 def test_render_briefing_quiet_day():
-    b = Briefing(today=TODAY, yesterday_total=Decimal("0"), yesterday_top=[], month_total=Decimal("0"),
-                 bills_due=[], subscriptions_due=[], pending_questions=1)
-    assert render_briefing(b) == ("☀️ Good morning! Fri 6 Nov\nYesterday: no spending\nNovember so far: ₹0.00\n"
-                                  "Nothing due this week.\n1 transaction needs a category. Send /review")
+    b = Briefing(
+        today=TODAY,
+        yesterday_total=Decimal("0"),
+        yesterday_top=[],
+        month_total=Decimal("0"),
+        bills_due=[],
+        subscriptions_due=[],
+        pending_questions=1,
+    )
+    assert render_briefing(b) == (
+        "☀️ Good morning! Fri 6 Nov\nYesterday: no spending\nNovember so far: ₹0.00\n"
+        "Nothing due this week.\n1 transaction needs a category. Send /review"
+    )
 ```
 
 ```python
@@ -173,12 +291,18 @@ from decimal import Decimal
 from app.briefing.build import build_briefing
 from tests.factories import add_bill, seed_november
 
+
 async def test_build_briefing(session):
     await seed_november(session)
     soon = await add_bill(session, due_on=date(2026, 11, 13))
-    await add_bill(session, name="Insurance", amount_due=Decimal("8000.00"), due_on=date(2026, 12, 30))
+    await add_bill(
+        session, name="Insurance", amount_due=Decimal("8000.00"), due_on=date(2026, 12, 30)
+    )
     b = await build_briefing(session, date(2026, 11, 6))
-    assert (b.yesterday_total, b.yesterday_top) == (Decimal("450.00"), [("Food", Decimal("450.00"))])
+    assert (b.yesterday_total, b.yesterday_top) == (
+        Decimal("450.00"),
+        [("Food", Decimal("450.00"))],
+    )
     assert (b.month_total, b.pending_questions) == (Decimal("3200.50"), 1)
     assert [line.id for line in b.bills_due] == [soon.id]
 ```
@@ -193,20 +317,34 @@ from temporalio.testing import WorkflowEnvironment
 from temporalio.worker import Worker
 from app.workflows.briefing import MorningBriefingWorkflow, briefing_schedule
 
+
 async def test_workflow_sends_once():
     calls = []
+
     @activity.defn(name="send_morning_briefing")
-    async def send() -> None: calls.append(1)
-    async with await WorkflowEnvironment.start_time_skipping(data_converter=pydantic_data_converter) as env:
-        async with Worker(env.client, task_queue="t", workflows=[MorningBriefingWorkflow], activities=[send]):
-            await env.client.execute_workflow(MorningBriefingWorkflow.run, id="morning-briefing", task_queue="t")
+    async def send() -> None:
+        calls.append(1)
+
+    async with await WorkflowEnvironment.start_time_skipping(
+        data_converter=pydantic_data_converter
+    ) as env:
+        async with Worker(
+            env.client, task_queue="t", workflows=[MorningBriefingWorkflow], activities=[send]
+        ):
+            await env.client.execute_workflow(
+                MorningBriefingWorkflow.run, id="morning-briefing", task_queue="t"
+            )
     assert calls == [1]
+
 
 def test_briefing_schedule_policy():
     s = briefing_schedule(8, "Asia/Kolkata")
     assert s.spec.time_zone_name == "Asia/Kolkata"
     assert (s.spec.calendars[0].hour[0].start, s.spec.calendars[0].minute[0].start) == (8, 0)
-    assert (s.policy.overlap, s.policy.catchup_window) == (ScheduleOverlapPolicy.SKIP, timedelta(hours=4))
+    assert (s.policy.overlap, s.policy.catchup_window) == (
+        ScheduleOverlapPolicy.SKIP,
+        timedelta(hours=4),
+    )
     assert s.action.id == "morning-briefing"
 ```
 
@@ -248,20 +386,30 @@ git add -A && git commit -m "feat(briefing): 8am morning briefing via a Temporal
 from app.workflows.briefing import BriefingActivities
 from tests.fakes import FakeNotifier
 
+
 def boom(text: str) -> bytes:
     raise RuntimeError("elevenlabs down")
 
+
 async def test_voice_note_follows_text(sessionmaker):
     heard, notifier = [], FakeNotifier()
+
     def speak(text: str) -> bytes:
-        heard.append(text); return b"mp3"
-    await BriefingActivities(sessionmaker, notifier, "Asia/Kolkata", synthesize=speak).send_morning_briefing()
+        heard.append(text)
+        return b"mp3"
+
+    await BriefingActivities(
+        sessionmaker, notifier, "Asia/Kolkata", synthesize=speak
+    ).send_morning_briefing()
     assert heard == [notifier.sent[0].text] and notifier.audio == [(b"mp3", "Morning briefing")]
+
 
 async def test_voice_off_or_failing_still_sends_text(sessionmaker):
     for synth in (None, boom):
         notifier = FakeNotifier()
-        await BriefingActivities(sessionmaker, notifier, "Asia/Kolkata", synthesize=synth).send_morning_briefing()
+        await BriefingActivities(
+            sessionmaker, notifier, "Asia/Kolkata", synthesize=synth
+        ).send_morning_briefing()
         assert len(notifier.sent) == 1 and notifier.audio == []
 ```
 
@@ -324,28 +472,51 @@ from tests.factories import seed_november
 
 TODAY = date(2026, 11, 6)
 
+
 async def test_spend_query(session):
     await seed_november(session)
     assert await spend_query(session, None, None, TODAY) == {
-        "month": "2026-11", "total": "3200.50", "income": "50000.00",
-        "by_category": {"Food": "1650.00", "Bills": "1250.50", "Uncategorised": "300.00"}}
-    assert await spend_query(session, "2026-11", "Food", TODAY) == {"month": "2026-11", "category": "Food", "total": "1650.00"}
+        "month": "2026-11",
+        "total": "3200.50",
+        "income": "50000.00",
+        "by_category": {"Food": "1650.00", "Bills": "1250.50", "Uncategorised": "300.00"},
+    }
+    assert await spend_query(session, "2026-11", "Food", TODAY) == {
+        "month": "2026-11",
+        "category": "Food",
+        "total": "1650.00",
+    }
+
 
 async def test_transactions_query_rows(session):
     ids = await seed_november(session)
     [row] = await transactions_query(session, "2026-11", "Bills", 50, TODAY)
-    assert row == {"id": ids["bills"], "date": "2026-11-04", "direction": "debit", "amount": "1250.50",
-                   "counterparty": "BESCOM", "category": "Bills"}
+    assert row == {
+        "id": ids["bills"],
+        "date": "2026-11-04",
+        "direction": "debit",
+        "amount": "1250.50",
+        "counterparty": "BESCOM",
+        "category": "Bills",
+    }
 
-@pytest.mark.parametrize("call,message", [
-    (lambda s: spend_query(s, "2026-13", None, TODAY), "month must look like 2026-11"),
-    (lambda s: spend_query(s, None, "Pizza", TODAY), "unknown category 'Pizza'"),
-    (lambda s: transactions_query(s, None, None, 500, TODAY), "limit must be between 1 and 200"),
-    (lambda s: upcoming_bills_query(s, 0, TODAY), "days must be between 1 and 366"),
-])
+
+@pytest.mark.parametrize(
+    "call,message",
+    [
+        (lambda s: spend_query(s, "2026-13", None, TODAY), "month must look like 2026-11"),
+        (lambda s: spend_query(s, None, "Pizza", TODAY), "unknown category 'Pizza'"),
+        (
+            lambda s: transactions_query(s, None, None, 500, TODAY),
+            "limit must be between 1 and 200",
+        ),
+        (lambda s: upcoming_bills_query(s, 0, TODAY), "days must be between 1 and 366"),
+    ],
+)
 async def test_query_validation(session, call, message):
     with pytest.raises(ValueError, match=message):
         await call(session)
+
 
 async def test_readonly_role_cannot_write(session):
     for stmt in readonly_role_statements():
@@ -353,13 +524,16 @@ async def test_readonly_role_cannot_write(session):
     await session.execute(text("SET ROLE lifeledger_ro"))
     await session.execute(text("SELECT count(*) FROM transactions"))
     with pytest.raises(DBAPIError, match="permission denied"):
-        await session.execute(text("INSERT INTO merchant_rules (merchant_key, category) VALUES ('X', 'Food')"))
+        await session.execute(
+            text("INSERT INTO merchant_rules (merchant_key, category) VALUES ('X', 'Food')")
+        )
 ```
 
 ```python
 # tests/mcp/test_server.py
 from fastmcp import Client
 from app.mcp.server import mcp
+
 
 async def test_exactly_four_tools():
     async with Client(mcp) as c:
@@ -452,11 +626,13 @@ from evals.export_cases import export_eval_cases
 from evals.metric import CategoryMatchMetric
 from tests.factories import add_txn
 
+
 def test_case_file_covers_every_category():
     cases = load_cases(Path("evals/cases.jsonl"))
     counts = Counter(c.expected for c in cases)
     assert len(cases) >= 30 and all(counts[c] >= 3 for c in Category)
     assert len({c.id for c in cases}) == len(cases)
+
 
 def test_metric_scores_exact_match():
     m = CategoryMatchMetric()
@@ -465,15 +641,30 @@ def test_metric_scores_exact_match():
     m.measure(LLMTestCase(input="p", actual_output="Shopping", expected_output="Food"))
     assert (m.score, m.is_successful()) == (0.0, False)
 
+
 async def test_export_masks_and_dedupes(session, tmp_path):
-    t = await add_txn(session, counterparty="9876543210@ybl", amount=Decimal("15000.00"),
-                      category=Category.RENT, category_source=CategorySource.USER)
-    await add_txn(session, counterparty="ZOMATO", category=Category.FOOD, category_source=CategorySource.LOCAL_LLM)
+    t = await add_txn(
+        session,
+        counterparty="9876543210@ybl",
+        amount=Decimal("15000.00"),
+        category=Category.RENT,
+        category_source=CategorySource.USER,
+    )
+    await add_txn(
+        session,
+        counterparty="ZOMATO",
+        category=Category.FOOD,
+        category_source=CategorySource.LOCAL_LLM,
+    )
     out = tmp_path / "cases.jsonl"
     assert await export_eval_cases(session, out, owner_names=[]) == 1
     assert await export_eval_cases(session, out, owner_names=[]) == 0
     [case] = load_cases(out)
-    assert (case.id, case.counterparty, case.expected) == (f"u-{t.id}", "[PHONE]@ybl", Category.RENT)
+    assert (case.id, case.counterparty, case.expected) == (
+        f"u-{t.id}",
+        "[PHONE]@ybl",
+        Category.RENT,
+    )
     assert "9876543210" not in out.read_text()
 ```
 

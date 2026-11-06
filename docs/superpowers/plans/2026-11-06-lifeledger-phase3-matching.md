@@ -57,28 +57,62 @@ from app.ledger.models import Transaction
 from app.ledger.schemas import Direction
 from app.matching.score import MatchLevel as L, pick_best, score_match
 
-def bill(id=12, amount="1250.50", due=date(2026, 11, 20), kw=("BESCOM",), status=BillStatus.OPEN, name="Electricity"):
-    return Bill(id=id, kind=BillKind.BILL, name=name, amount_due=Decimal(amount) if amount else None,
-                due_on=due, payee_keywords=list(kw), status=status)
 
-def txn(amount="1250.50", key="BESCOM", cp="BESCOM", on=date(2026, 11, 18), direction=Direction.DEBIT):
-    return Transaction(id=1, direction=direction, amount=Decimal(amount), merchant_key=key, counterparty=cp, occurred_on=on)
+def bill(
+    id=12,
+    amount="1250.50",
+    due=date(2026, 11, 20),
+    kw=("BESCOM",),
+    status=BillStatus.OPEN,
+    name="Electricity",
+):
+    return Bill(
+        id=id,
+        kind=BillKind.BILL,
+        name=name,
+        amount_due=Decimal(amount) if amount else None,
+        due_on=due,
+        payee_keywords=list(kw),
+        status=status,
+    )
 
-@pytest.mark.parametrize("t,b,level", [
-    (txn(), bill(), L.EXACT),
-    (txn(key="PAYTM", cp="paytm@ptys"), bill(), L.PROBABLE),
-    (txn(amount="999.00"), bill(), L.PROBABLE),
-    (txn(key="BESCOM BILL", cp="bescom.bill@hdfcbank"), bill(), L.EXACT),
-    (txn(direction=Direction.CREDIT), bill(), L.NONE),
-    (txn(on=date(2026, 10, 20)), bill(), L.NONE),
-    (txn(on=date(2026, 10, 21)), bill(), L.EXACT),
-    (txn(on=date(2026, 11, 27)), bill(), L.EXACT),
-    (txn(on=date(2026, 11, 28)), bill(), L.NONE),
-    (txn(amount="8000.00", key="ACKO", cp="ACKO"), bill(amount=None, kw=("ACKO",), name="Car insurance"), L.PROBABLE),
-    (txn(key="SWIGGY", cp="swiggy@icici", amount="450.00"), bill(), L.NONE),
-])
+
+def txn(
+    amount="1250.50", key="BESCOM", cp="BESCOM", on=date(2026, 11, 18), direction=Direction.DEBIT
+):
+    return Transaction(
+        id=1,
+        direction=direction,
+        amount=Decimal(amount),
+        merchant_key=key,
+        counterparty=cp,
+        occurred_on=on,
+    )
+
+
+@pytest.mark.parametrize(
+    "t,b,level",
+    [
+        (txn(), bill(), L.EXACT),
+        (txn(key="PAYTM", cp="paytm@ptys"), bill(), L.PROBABLE),
+        (txn(amount="999.00"), bill(), L.PROBABLE),
+        (txn(key="BESCOM BILL", cp="bescom.bill@hdfcbank"), bill(), L.EXACT),
+        (txn(direction=Direction.CREDIT), bill(), L.NONE),
+        (txn(on=date(2026, 10, 20)), bill(), L.NONE),
+        (txn(on=date(2026, 10, 21)), bill(), L.EXACT),
+        (txn(on=date(2026, 11, 27)), bill(), L.EXACT),
+        (txn(on=date(2026, 11, 28)), bill(), L.NONE),
+        (
+            txn(amount="8000.00", key="ACKO", cp="ACKO"),
+            bill(amount=None, kw=("ACKO",), name="Car insurance"),
+            L.PROBABLE,
+        ),
+        (txn(key="SWIGGY", cp="swiggy@icici", amount="450.00"), bill(), L.NONE),
+    ],
+)
 def test_score_match(t, b, level):
     assert score_match(t, b) is level
+
 
 def test_tie_picks_earliest_due():
     nov = bill(id=1, amount="15000", due=date(2026, 11, 5), kw=("LANDLORD",), name="Rent")
@@ -86,8 +120,11 @@ def test_tie_picks_earliest_due():
     t = txn(amount="15000", key="LANDLORD", cp="landlord@okicici", on=date(2026, 11, 6))
     assert pick_best(t, [dec, nov]) == (nov, L.EXACT)
 
+
 def test_exact_beats_earlier_probable_and_closed_bills_are_ignored():
-    water = bill(id=3, amount="1250.50", due=date(2026, 11, 12), kw=("BWSSB",), name="Water")  # same amount → PROBABLE
+    water = bill(
+        id=3, amount="1250.50", due=date(2026, 11, 12), kw=("BWSSB",), name="Water"
+    )  # same amount → PROBABLE
     paid = bill(id=4, status=BillStatus.PAID)
     elec = bill()
     assert pick_best(txn(), [water, paid, elec]) == (elec, L.EXACT)
@@ -155,27 +192,52 @@ from app.matching.service import answer_match, match_new_bills, match_transactio
 from tests.factories import add_bill, add_txn
 
 NOW = datetime(2026, 11, 18, 6, 0, tzinfo=UTC)
+
+
 def debit(session, **kw):
-    base = dict(direction=Direction.DEBIT, amount=Decimal("1250.50"), merchant_key="BESCOM", counterparty="BESCOM", occurred_on=date(2026, 11, 18))
+    base = dict(
+        direction=Direction.DEBIT,
+        amount=Decimal("1250.50"),
+        merchant_key="BESCOM",
+        counterparty="BESCOM",
+        occurred_on=date(2026, 11, 18),
+    )
     return add_txn(session, **(base | kw))
+
 
 async def test_exact_debit_closes_bill(session):
     b, t = await add_bill(session), await debit(session)
     out = await match_transaction(session, t, NOW)
-    assert (out.level, out.paid_bill_ids, b.status, b.paid_transaction_id) == (L.EXACT, [b.id], BillStatus.PAID, t.id)
-    assert out.outgoing[0].text == f"✅ ₹1,250.50 to BESCOM on Wed 18 Nov matched Electricity (#{b.id}). Marked paid, reminders stopped."
+    assert (out.level, out.paid_bill_ids, b.status, b.paid_transaction_id) == (
+        L.EXACT,
+        [b.id],
+        BillStatus.PAID,
+        t.id,
+    )
+    assert (
+        out.outgoing[0].text
+        == f"✅ ₹1,250.50 to BESCOM on Wed 18 Nov matched Electricity (#{b.id}). Marked paid, reminders stopped."
+    )
+
 
 async def test_probable_debit_asks(session):
     b, t = await add_bill(session), await debit(session, merchant_key="PAYTM", counterparty="PAYTM")
     out = await match_transaction(session, t, NOW)
     p = (await session.scalars(select(MatchProposal))).one()
     assert (out.level, b.status, p.status.value) == (L.PROBABLE, BillStatus.OPEN, "pending")
-    assert out.outgoing[0].text == f"❓ Is ₹1,250.50 to PAYTM on Wed 18 Nov the payment for Electricity (#{b.id}, ₹1,250.50 due Fri 20 Nov)?"
+    assert (
+        out.outgoing[0].text
+        == f"❓ Is ₹1,250.50 to PAYTM on Wed 18 Nov the payment for Electricity (#{b.id}, ₹1,250.50 due Fri 20 Nov)?"
+    )
     assert out.outgoing[0].keyboard == [[("Yes", f"match:{p.id}:y"), ("No", f"match:{p.id}:n")]]
+
 
 async def test_credit_never_matches(session):
     await add_bill(session)
-    assert (await match_transaction(session, await debit(session, direction=Direction.CREDIT), NOW)).level is L.NONE
+    assert (
+        await match_transaction(session, await debit(session, direction=Direction.CREDIT), NOW)
+    ).level is L.NONE
+
 
 async def test_rejected_pair_not_asked_again(session):
     await add_bill(session)
@@ -185,26 +247,58 @@ async def test_rejected_pair_not_asked_again(session):
     assert await answer_match(session, f"match:{pid}:n", NOW) == ("OK, not linked.", [])
     assert (await match_transaction(session, t, NOW)).level is L.NONE and p_out.level is L.PROBABLE
 
+
 async def test_one_payment_closes_one_bill(session):
-    nov = await add_bill(session, name="Rent", amount_due=Decimal("15000"), due_on=date(2026, 11, 5), payee_keywords=["LANDLORD"])
-    dec = await add_bill(session, name="Rent", amount_due=Decimal("15000"), due_on=date(2026, 12, 5), payee_keywords=["LANDLORD"])
-    t = await debit(session, amount=Decimal("15000"), merchant_key="LANDLORD", counterparty="landlord@okicici", occurred_on=date(2026, 11, 6))
+    nov = await add_bill(
+        session,
+        name="Rent",
+        amount_due=Decimal("15000"),
+        due_on=date(2026, 11, 5),
+        payee_keywords=["LANDLORD"],
+    )
+    dec = await add_bill(
+        session,
+        name="Rent",
+        amount_due=Decimal("15000"),
+        due_on=date(2026, 12, 5),
+        payee_keywords=["LANDLORD"],
+    )
+    t = await debit(
+        session,
+        amount=Decimal("15000"),
+        merchant_key="LANDLORD",
+        counterparty="landlord@okicici",
+        occurred_on=date(2026, 11, 6),
+    )
     await match_transaction(session, t, NOW)
     assert (nov.status, dec.status) == (BillStatus.PAID, BillStatus.OPEN)
     assert (await match_transaction(session, t, NOW)).level is L.NONE
 
+
 async def test_late_payment_closes_expired_bill(session):
     b = await add_bill(session, status=BillStatus.EXPIRED)
-    out = await match_transaction(session, await debit(session, occurred_on=date(2026, 11, 25)), NOW)
+    out = await match_transaction(
+        session, await debit(session, occurred_on=date(2026, 11, 25)), NOW
+    )
     assert (out.level, b.status) == (L.EXACT, BillStatus.PAID)
+
 
 async def test_answer_twice_is_harmless(session):
     b = await add_bill(session, recurrence=Recurrence.MONTHLY, anchor_day=20)
-    await match_transaction(session, await debit(session, merchant_key="PAYTM", counterparty="PAYTM"), NOW)
+    await match_transaction(
+        session, await debit(session, merchant_key="PAYTM", counterparty="PAYTM"), NOW
+    )
     pid = (await session.scalars(select(MatchProposal))).one().id
-    assert await answer_match(session, f"match:{pid}:y", NOW) == (f"✅ Electricity (#{b.id}) marked paid. Next one: Sun 20 Dec.", [b.id])
-    assert await answer_match(session, f"match:{pid}:y", NOW) == (f"Electricity (#{b.id}) is already paid.", [])
+    assert await answer_match(session, f"match:{pid}:y", NOW) == (
+        f"✅ Electricity (#{b.id}) marked paid. Next one: Sun 20 Dec.",
+        [b.id],
+    )
+    assert await answer_match(session, f"match:{pid}:y", NOW) == (
+        f"Electricity (#{b.id}) is already paid.",
+        [],
+    )
     assert await answer_match(session, "match:999:y", NOW) == ("That question has expired.", [])
+
 
 async def test_new_bill_matches_earlier_payment(session):
     t = await debit(session, occurred_on=date(2026, 11, 3))
@@ -219,11 +313,17 @@ async def test_new_bill_matches_earlier_payment(session):
 from app.bot.actions import keywords_reply
 from tests.factories import add_bill
 
-USAGE = "Usage: /keywords <bill number> <word>[, <word>…]\nExample: /keywords 12 BESCOM, ELECTRICITY"
+USAGE = (
+    "Usage: /keywords <bill number> <word>[, <word>…]\nExample: /keywords 12 BESCOM, ELECTRICITY"
+)
+
 
 async def test_keywords_reply(session):
     b = await add_bill(session)
-    assert await keywords_reply(session, [str(b.id), "BESCOM,", "electricity"]) == f"🔑 #{b.id} Electricity will match payments to: BESCOM, ELECTRICITY"
+    assert (
+        await keywords_reply(session, [str(b.id), "BESCOM,", "electricity"])
+        == f"🔑 #{b.id} Electricity will match payments to: BESCOM, ELECTRICITY"
+    )
     assert b.payee_keywords == ["BESCOM", "ELECTRICITY"]
     assert await keywords_reply(session, ["99", "X"]) == "Bill #99 not found."
     assert await keywords_reply(session, []) == USAGE
@@ -289,18 +389,27 @@ from app.llm.ladder import ModelLadder
 from app.observability.tracing import current_trace_id, setup_tracing, traced_span
 from tests.fakes import FakeRunner
 
+
 def test_trace_id_only_inside_span():
     assert current_trace_id() is None
     with traced_span("x", a="1"):
         assert re.fullmatch(r"[0-9a-f]{32}", current_trace_id())
 
+
 def test_setup_without_keys_is_off():
     assert setup_tracing(Settings(database_url="postgresql+asyncpg://x", _env_file=None)) is False
 
+
 async def test_categorise_records_trace(session, spans):
-    d = await categorise(session, direction=Direction.DEBIT, amount=Decimal("450.00"), counterparty="swiggy@icici",
-                         merchant_key="SWIGGY", ladder=ModelLadder(FakeRunner(CategoryGuess(category=C.FOOD, confidence=0.9)), None, []),
-                         threshold=0.8)
+    d = await categorise(
+        session,
+        direction=Direction.DEBIT,
+        amount=Decimal("450.00"),
+        counterparty="swiggy@icici",
+        merchant_key="SWIGGY",
+        ladder=ModelLadder(FakeRunner(CategoryGuess(category=C.FOOD, confidence=0.9)), None, []),
+        threshold=0.8,
+    )
     assert re.fullmatch(r"[0-9a-f]{32}", d.trace_id)
     assert "categorise_transaction" in [s.name for s in spans.get_finished_spans()]
 ```
@@ -315,18 +424,38 @@ from tests.fakes import FakeFeedback
 
 TRACE = "0af7651916cd43dd8448eb211c80319c"
 
+
 async def pending(session, **kw):
-    return await add_txn(session, **({"status": TxnStatus.NEEDS_REVIEW, "category": None, "suggested_category": C.FOOD, "trace_id": TRACE} | kw))
+    return await add_txn(
+        session,
+        **(
+            {
+                "status": TxnStatus.NEEDS_REVIEW,
+                "category": None,
+                "suggested_category": C.FOOD,
+                "trace_id": TRACE,
+            }
+            | kw
+        ),
+    )
+
 
 async def test_agreeing_with_suggestion_scores_one(session):
     t, fb = await pending(session), FakeFeedback()
     await answer_category(session, f"cat:{t.id}:Food", fb)
     assert fb.records == [(TRACE, "category_correct", 1.0)]
 
+
 async def test_overriding_model_scores_zero(session):
-    t, fb = await add_txn(session, category=C.SHOPPING, category_source=CategorySource.LOCAL_LLM, trace_id=TRACE), FakeFeedback()
+    t, fb = (
+        await add_txn(
+            session, category=C.SHOPPING, category_source=CategorySource.LOCAL_LLM, trace_id=TRACE
+        ),
+        FakeFeedback(),
+    )
     await answer_category(session, f"cat:{t.id}:Food", fb)
     assert fb.records == [(TRACE, "category_correct", 0.0)]
+
 
 async def test_no_trace_no_score(session):
     t, fb = await pending(session, trace_id=None), FakeFeedback()

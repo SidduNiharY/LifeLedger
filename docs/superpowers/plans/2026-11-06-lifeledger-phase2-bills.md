@@ -58,25 +58,36 @@ from app.bills.schedule import compute_reminder_times, next_due_date
 from app.bills.schemas import Recurrence as R
 
 DUE = date(2026, 11, 20)
-def at(day, h=3, m=30): return datetime(2026, 11, day, h, m, tzinfo=UTC)
 
-@pytest.mark.parametrize("now,expected", [
-    (at(6, 4, 0), [(at(13), "due_in_7"), (at(19), "due_in_1"), (at(20), "due_today")]),
-    (at(18, 4, 0), [(at(19), "due_in_1"), (at(20), "due_today")]),
-    (at(19, 22, 0), [(at(20), "due_today")]),
-    (at(20, 5, 0), [(at(20, 5, 0), "due_today")]),
-    (at(21, 2, 0), [(at(21, 2, 0), "overdue")]),
-])
+
+def at(day, h=3, m=30):
+    return datetime(2026, 11, day, h, m, tzinfo=UTC)
+
+
+@pytest.mark.parametrize(
+    "now,expected",
+    [
+        (at(6, 4, 0), [(at(13), "due_in_7"), (at(19), "due_in_1"), (at(20), "due_today")]),
+        (at(18, 4, 0), [(at(19), "due_in_1"), (at(20), "due_today")]),
+        (at(19, 22, 0), [(at(20), "due_today")]),
+        (at(20, 5, 0), [(at(20, 5, 0), "due_today")]),
+        (at(21, 2, 0), [(at(21, 2, 0), "overdue")]),
+    ],
+)
 def test_compute_reminder_times(now, expected):
     assert [(r.at, r.kind) for r in compute_reminder_times(DUE, now)] == expected
 
-@pytest.mark.parametrize("due,rec,anchor,expected", [
-    (date(2026, 1, 31), R.MONTHLY, 31, date(2026, 2, 28)),
-    (date(2026, 2, 28), R.MONTHLY, 31, date(2026, 3, 31)),
-    (date(2026, 12, 15), R.MONTHLY, 15, date(2027, 1, 15)),
-    (date(2028, 2, 29), R.YEARLY, 29, date(2029, 2, 28)),
-    (date(2026, 11, 20), R.NONE, None, None),
-])
+
+@pytest.mark.parametrize(
+    "due,rec,anchor,expected",
+    [
+        (date(2026, 1, 31), R.MONTHLY, 31, date(2026, 2, 28)),
+        (date(2026, 2, 28), R.MONTHLY, 31, date(2026, 3, 31)),
+        (date(2026, 12, 15), R.MONTHLY, 15, date(2027, 1, 15)),
+        (date(2028, 2, 29), R.YEARLY, 29, date(2029, 2, 28)),
+        (date(2026, 11, 20), R.NONE, None, None),
+    ],
+)
 def test_next_due_date(due, rec, anchor, expected):
     assert next_due_date(due, rec, anchor) == expected
 ```
@@ -86,6 +97,7 @@ def test_next_due_date(due, rec, anchor, expected):
 import pytest
 from pydantic import ValidationError
 from app.bills.schemas import BillExtraction
+
 
 def test_bill_extraction_needs_name_and_date():
     with pytest.raises(ValidationError):
@@ -146,38 +158,80 @@ from app.bills.schemas import BillDraft, BillKind, BillSource as Src, BillStatus
 from tests.factories import add_bill
 
 NOW = datetime(2026, 11, 18, 6, 0, tzinfo=UTC)
+
+
 def draft(**kw):
-    base = dict(kind=BillKind.BILL, name="Electricity BESCOM", amount_due=Decimal("1250.50"), due_on=date(2026, 11, 20), source=Src.MANUAL)
+    base = dict(
+        kind=BillKind.BILL,
+        name="Electricity BESCOM",
+        amount_due=Decimal("1250.50"),
+        due_on=date(2026, 11, 20),
+        source=Src.MANUAL,
+    )
     return BillDraft(**(base | kw))
+
 
 async def test_create_bill_dedupes(session):
     first, created = await repo.create_bill(session, draft())
     assert created and first.payee_keywords == ["ELECTRICITY BESCOM"]
     assert await repo.create_bill(session, draft()) == (first, False)
-    assert await repo.create_bill(session, draft(name="Bangalore Electricity", source=Src.PDF, external_ref="sha256:a")) == (first, False)
-    pdf, _ = await repo.create_bill(session, draft(name="Water", amount_due=Decimal("300.00"), source=Src.PDF, external_ref="sha256:b"))
-    assert await repo.create_bill(session, draft(name="Water BWSSB", amount_due=None, source=Src.PDF, external_ref="sha256:b")) == (pdf, False)
+    assert await repo.create_bill(
+        session, draft(name="Bangalore Electricity", source=Src.PDF, external_ref="sha256:a")
+    ) == (first, False)
+    pdf, _ = await repo.create_bill(
+        session,
+        draft(name="Water", amount_due=Decimal("300.00"), source=Src.PDF, external_ref="sha256:b"),
+    )
+    assert await repo.create_bill(
+        session, draft(name="Water BWSSB", amount_due=None, source=Src.PDF, external_ref="sha256:b")
+    ) == (pdf, False)
+
 
 async def test_close_monthly_bill_rolls_forward(session):
-    rent, _ = await repo.create_bill(session, draft(name="Rent", amount_due=Decimal("15000"), due_on=date(2026, 1, 31), recurrence=Recurrence.MONTHLY))
+    rent, _ = await repo.create_bill(
+        session,
+        draft(
+            name="Rent",
+            amount_due=Decimal("15000"),
+            due_on=date(2026, 1, 31),
+            recurrence=Recurrence.MONTHLY,
+        ),
+    )
     nxt = await repo.close_bill(session, rent, transaction_id=None, now=NOW)
-    assert (rent.status, rent.paid_at, nxt.due_on, nxt.anchor_day) == (St.PAID, NOW, date(2026, 2, 28), 31)
+    assert (rent.status, rent.paid_at, nxt.due_on, nxt.anchor_day) == (
+        St.PAID,
+        NOW,
+        date(2026, 2, 28),
+        31,
+    )
     with pytest.raises(repo.BillNotOpen):
         await repo.close_bill(session, rent, transaction_id=None, now=NOW)
 
+
 async def test_expire_and_cancel(session):
-    a, b = await add_bill(session), await add_bill(session, name="Water", amount_due=Decimal("300.00"))
+    a, b = (
+        await add_bill(session),
+        await add_bill(session, name="Water", amount_due=Decimal("300.00")),
+    )
     assert await repo.expire_bill(session, a.id) is None and a.status is St.EXPIRED
     assert await repo.expire_bill(session, a.id) is None
     await repo.cancel_bill(session, b)
     assert b.status is St.CANCELLED
 
+
 async def test_bills_due_within(session):
-    overdue = await add_bill(session, name="Water", amount_due=Decimal("300.00"), due_on=date(2026, 11, 2))
+    overdue = await add_bill(
+        session, name="Water", amount_due=Decimal("300.00"), due_on=date(2026, 11, 2)
+    )
     soon = await add_bill(session)
-    await add_bill(session, name="Insurance", amount_due=Decimal("8000.00"), due_on=date(2027, 1, 30))
+    await add_bill(
+        session, name="Insurance", amount_due=Decimal("8000.00"), due_on=date(2027, 1, 30)
+    )
     await add_bill(session, name="Gas", amount_due=Decimal("900.00"), status=St.PAID)
-    assert [b.id for b in await repo.bills_due_within(session, date(2026, 11, 6))] == [overdue.id, soon.id]
+    assert [b.id for b in await repo.bills_due_within(session, date(2026, 11, 6))] == [
+        overdue.id,
+        soon.id,
+    ]
 ```
 
 ```python
@@ -189,30 +243,61 @@ from app.bills.models import Bill
 from app.bills.render import render_bill_reminder, render_due_list, render_new_bill
 from app.bills.schemas import BillKind
 
-BILL = Bill(id=12, kind=BillKind.BILL, name="Electricity", amount_due=Decimal("1250.50"), due_on=date(2026, 11, 20))
-RENEWAL = Bill(id=13, kind=BillKind.RENEWAL, name="Passport renewal", amount_due=None, due_on=date(2026, 11, 9))
+BILL = Bill(
+    id=12,
+    kind=BillKind.BILL,
+    name="Electricity",
+    amount_due=Decimal("1250.50"),
+    due_on=date(2026, 11, 20),
+)
+RENEWAL = Bill(
+    id=13, kind=BillKind.RENEWAL, name="Passport renewal", amount_due=None, due_on=date(2026, 11, 9)
+)
 
-@pytest.mark.parametrize("kind,text", [
-    ("due_in_7", "⏰ Electricity: ₹1,250.50 due in 7 days (Fri 20 Nov)."),
-    ("due_in_1", "⏰ Electricity: ₹1,250.50 due tomorrow (Fri 20 Nov)."),
-    ("due_today", "⏰ Electricity: ₹1,250.50 due today (Fri 20 Nov)."),
-    ("overdue", "⚠️ Electricity: ₹1,250.50 was due on Fri 20 Nov. No payment matched yet. Send /paid 12 if you paid."),
-])
+
+@pytest.mark.parametrize(
+    "kind,text",
+    [
+        ("due_in_7", "⏰ Electricity: ₹1,250.50 due in 7 days (Fri 20 Nov)."),
+        ("due_in_1", "⏰ Electricity: ₹1,250.50 due tomorrow (Fri 20 Nov)."),
+        ("due_today", "⏰ Electricity: ₹1,250.50 due today (Fri 20 Nov)."),
+        (
+            "overdue",
+            "⚠️ Electricity: ₹1,250.50 was due on Fri 20 Nov. No payment matched yet. Send /paid 12 if you paid.",
+        ),
+    ],
+)
 def test_render_bill_reminder(kind, text):
     assert render_bill_reminder(BILL, kind) == text
 
+
 def test_render_renewal_and_new_bill():
-    assert render_bill_reminder(RENEWAL, "due_in_7") == "⏰ Passport renewal due in 7 days (Mon 9 Nov)."
-    assert render_new_bill(BILL) == ("📄 Added bill #12 Electricity: ₹1,250.50, due Fri 20 Nov. "
-                                     "Reminders: 7 days before, 1 day before and on the day.")
-    assert render_new_bill(RENEWAL) == ("📄 Added renewal #13 Passport renewal, due Mon 9 Nov. "
-                                        "Reminders: 7 days before, 1 day before and on the day.")
+    assert (
+        render_bill_reminder(RENEWAL, "due_in_7")
+        == "⏰ Passport renewal due in 7 days (Mon 9 Nov)."
+    )
+    assert render_new_bill(BILL) == (
+        "📄 Added bill #12 Electricity: ₹1,250.50, due Fri 20 Nov. "
+        "Reminders: 7 days before, 1 day before and on the day."
+    )
+    assert render_new_bill(RENEWAL) == (
+        "📄 Added renewal #13 Passport renewal, due Mon 9 Nov. "
+        "Reminders: 7 days before, 1 day before and on the day."
+    )
+
 
 def test_render_due_list():
-    water = Bill(id=14, kind=BillKind.BILL, name="Water", amount_due=Decimal("300.00"), due_on=date(2026, 11, 2))
+    water = Bill(
+        id=14,
+        kind=BillKind.BILL,
+        name="Water",
+        amount_due=Decimal("300.00"),
+        due_on=date(2026, 11, 2),
+    )
     assert render_due_list([BILL, RENEWAL, water], date(2026, 11, 6)) == (
         "Due in the next 30 days:\n• #14 Water: ₹300.00 — Mon 2 Nov (overdue)\n"
-        "• #13 Passport renewal — Mon 9 Nov\n• #12 Electricity: ₹1,250.50 — Fri 20 Nov")
+        "• #13 Passport renewal — Mon 9 Nov\n• #12 Electricity: ₹1,250.50 — Fri 20 Nov"
+    )
     assert render_due_list([], date(2026, 11, 6)) == "Nothing due in the next 30 days."
 ```
 
@@ -295,58 +380,90 @@ from temporalio.worker import Worker
 from app.bills.schemas import ReminderTime
 from app.workflows.bill_reminder import BillReminderInput, BillReminderWorkflow
 
+
 def fakes(send_result=True):
     sent, expired = [], []
+
     @activity.defn(name="send_bill_reminder")
     async def send(bill_id: int, kind: str) -> bool:
-        sent.append((bill_id, kind)); return send_result
+        sent.append((bill_id, kind))
+        return send_result
+
     @activity.defn(name="expire_bill")
     async def expire(bill_id: int) -> None:
         expired.append(bill_id)
+
     return [send, expire], sent, expired
+
 
 @pytest.fixture
 async def env():
-    async with await WorkflowEnvironment.start_time_skipping(data_converter=pydantic_data_converter) as e:
+    async with await WorkflowEnvironment.start_time_skipping(
+        data_converter=pydantic_data_converter
+    ) as e:
         yield e
+
 
 async def start(env, acts):
     now = await env.get_current_time()
-    inp = BillReminderInput(bill_id=12, reminders=[ReminderTime(at=now + timedelta(days=d), kind=k)
-                                                   for d, k in [(1, "due_in_7"), (2, "due_in_1"), (3, "due_today")]])
+    inp = BillReminderInput(
+        bill_id=12,
+        reminders=[
+            ReminderTime(at=now + timedelta(days=d), kind=k)
+            for d, k in [(1, "due_in_7"), (2, "due_in_1"), (3, "due_today")]
+        ],
+    )
     worker = Worker(env.client, task_queue="t", workflows=[BillReminderWorkflow], activities=acts)
     return worker, inp
+
 
 async def test_sends_all_reminders_then_expires(env):
     acts, sent, expired = fakes()
     worker, inp = await start(env, acts)
     async with worker:
-        assert await env.client.execute_workflow(BillReminderWorkflow.run, inp, id="bill-12", task_queue="t") == "expired"
+        assert (
+            await env.client.execute_workflow(
+                BillReminderWorkflow.run, inp, id="bill-12", task_queue="t"
+            )
+            == "expired"
+        )
     assert sent == [(12, "due_in_7"), (12, "due_in_1"), (12, "due_today")] and expired == [12]
+
 
 async def test_mark_paid_stops_reminders(env):
     acts, sent, expired = fakes()
     worker, inp = await start(env, acts)
     async with worker:
-        handle = await env.client.start_workflow(BillReminderWorkflow.run, inp, id="bill-12", task_queue="t")
+        handle = await env.client.start_workflow(
+            BillReminderWorkflow.run, inp, id="bill-12", task_queue="t"
+        )
         await env.sleep(timedelta(days=1, hours=1))
         await handle.signal(BillReminderWorkflow.mark_paid)
         assert await handle.result() == "paid"
     assert sent == [(12, "due_in_7")] and expired == []
 
+
 async def test_cancel_before_first_reminder(env):
     acts, sent, _ = fakes()
     worker, inp = await start(env, acts)
     async with worker:
-        handle = await env.client.start_workflow(BillReminderWorkflow.run, inp, id="bill-12", task_queue="t")
+        handle = await env.client.start_workflow(
+            BillReminderWorkflow.run, inp, id="bill-12", task_queue="t"
+        )
         await handle.signal(BillReminderWorkflow.cancel)
         assert await handle.result() == "cancelled" and sent == []
+
 
 async def test_bill_closed_elsewhere_stops_workflow(env):
     acts, sent, _ = fakes(send_result=False)
     worker, inp = await start(env, acts)
     async with worker:
-        assert await env.client.execute_workflow(BillReminderWorkflow.run, inp, id="bill-12", task_queue="t") == "bill_not_open"
+        assert (
+            await env.client.execute_workflow(
+                BillReminderWorkflow.run, inp, id="bill-12", task_queue="t"
+            )
+            == "bill_not_open"
+        )
     assert len(sent) == 1
 ```
 
@@ -358,18 +475,25 @@ from app.workflows.activities import BillActivities
 from tests.factories import add_bill
 from tests.fakes import FakeNotifier
 
+
 async def test_reminder_activity_sends_for_open_bill(sessionmaker):
     async with sessionmaker() as s, s.begin():
         bill = await add_bill(s)
     notifier = FakeNotifier()
-    assert await BillActivities(sessionmaker, notifier).send_bill_reminder(bill.id, "due_in_7") is True
+    assert (
+        await BillActivities(sessionmaker, notifier).send_bill_reminder(bill.id, "due_in_7") is True
+    )
     assert [o.text for o in notifier.sent] == [render_bill_reminder(bill, "due_in_7")]
+
 
 async def test_reminder_activity_skips_closed_bill(sessionmaker):
     async with sessionmaker() as s, s.begin():
         bill = await add_bill(s, status=BillStatus.PAID)
     notifier = FakeNotifier()
-    assert await BillActivities(sessionmaker, notifier).send_bill_reminder(bill.id, "due_in_1") is False
+    assert (
+        await BillActivities(sessionmaker, notifier).send_bill_reminder(bill.id, "due_in_1")
+        is False
+    )
     assert await BillActivities(sessionmaker, notifier).send_bill_reminder(999, "due_in_1") is False
     assert notifier.sent == []
 ```
@@ -417,15 +541,24 @@ from tests.factories import add_bill
 from tests.fakes import FakeBillWorkflows
 
 NOW = datetime(2026, 11, 6, 4, 0, tzinfo=UTC)
+
+
 async def ensure(session, wf):
-    return await ensure_bill_workflows(session, wf, NOW, days_before=[7, 1, 0], hour_local=9, tz="Asia/Kolkata")
+    return await ensure_bill_workflows(
+        session, wf, NOW, days_before=[7, 1, 0], hour_local=9, tz="Asia/Kolkata"
+    )
+
 
 async def test_starts_new_open_bills(session):
-    a, b = await add_bill(session), await add_bill(session, name="Water", amount_due=Decimal("300.00"))
+    a, b = (
+        await add_bill(session),
+        await add_bill(session, name="Water", amount_due=Decimal("300.00")),
+    )
     wf = FakeBillWorkflows()
     assert await ensure(session, wf) == 2
     assert (a.workflow_id, b.workflow_id) == (f"bill-{a.id}", f"bill-{b.id}")
     assert wf.started[0][1][0].kind == "due_in_7"
+
 
 async def test_running_workflow_is_not_restarted(session):
     await add_bill(session, workflow_id="bill-1")
@@ -433,8 +566,12 @@ async def test_running_workflow_is_not_restarted(session):
     wf = FakeBillWorkflows()
     assert await ensure(session, wf) == 0 and wf.started == []
 
+
 async def test_failed_start_is_retried_later(session):
-    a, b = await add_bill(session), await add_bill(session, name="Water", amount_due=Decimal("300.00"))
+    a, b = (
+        await add_bill(session),
+        await add_bill(session, name="Water", amount_due=Decimal("300.00")),
+    )
     wf = FakeBillWorkflows(fail_for={a.id})
     assert await ensure(session, wf) == 1
     assert (a.workflow_id, b.workflow_id) == (None, f"bill-{b.id}")
@@ -489,18 +626,44 @@ import pytest
 from app.bills.commands import ADDBILL_USAGE, ADDRENEWAL_USAGE, parse_addbill, parse_addrenewal
 from app.bills.schemas import BillKind, Recurrence
 
+
 def test_parse_addbill():
     d = parse_addbill(["Rent", "15000", "2026-12-05", "monthly"])
-    assert (d.name, d.amount_due, d.due_on, d.recurrence, d.kind) == ("Rent", Decimal("15000.00"), date(2026, 12, 5), Recurrence.MONTHLY, BillKind.BILL)
-    assert parse_addbill(["Electricity", "BESCOM", "1,250.50", "2026-11-20"]).name == "Electricity BESCOM"
+    assert (d.name, d.amount_due, d.due_on, d.recurrence, d.kind) == (
+        "Rent",
+        Decimal("15000.00"),
+        date(2026, 12, 5),
+        Recurrence.MONTHLY,
+        BillKind.BILL,
+    )
+    assert (
+        parse_addbill(["Electricity", "BESCOM", "1,250.50", "2026-11-20"]).name
+        == "Electricity BESCOM"
+    )
 
-@pytest.mark.parametrize("args", [[], ["Rent"], ["Rent", "abc", "2026-12-05"], ["Rent", "15000", "05-12-2026"], ["15000", "2026-12-05"]])
+
+@pytest.mark.parametrize(
+    "args",
+    [
+        [],
+        ["Rent"],
+        ["Rent", "abc", "2026-12-05"],
+        ["Rent", "15000", "05-12-2026"],
+        ["15000", "2026-12-05"],
+    ],
+)
 def test_parse_addbill_errors(args):
     assert parse_addbill(args) == ADDBILL_USAGE
 
+
 def test_parse_addrenewal():
     d = parse_addrenewal(["Car", "insurance", "2027-01-10", "yearly"])
-    assert (d.kind, d.name, d.amount_due, d.recurrence) == (BillKind.RENEWAL, "Car insurance", None, Recurrence.YEARLY)
+    assert (d.kind, d.name, d.amount_due, d.recurrence) == (
+        BillKind.RENEWAL,
+        "Car insurance",
+        None,
+        Recurrence.YEARLY,
+    )
     assert parse_addrenewal(["Passport"]) == ADDRENEWAL_USAGE
 ```
 
@@ -512,17 +675,25 @@ from app.bot.actions import addbill_reply, cancelbill_reply, paid_reply
 NOW = datetime(2026, 12, 1, 6, 0, tzinfo=UTC)
 RENT = ["Rent", "15000", "2026-12-05", "monthly"]
 
+
 async def test_addbill_and_duplicate(session):
-    assert await addbill_reply(session, RENT) == ("📄 Added bill #1 Rent: ₹15,000.00, due Sat 5 Dec. "
-                                                  "Reminders: 7 days before, 1 day before and on the day.")
+    assert await addbill_reply(session, RENT) == (
+        "📄 Added bill #1 Rent: ₹15,000.00, due Sat 5 Dec. "
+        "Reminders: 7 days before, 1 day before and on the day."
+    )
     assert await addbill_reply(session, RENT) == "That bill already exists as #1."
+
 
 async def test_paid_reply(session):
     await addbill_reply(session, RENT)
-    assert await paid_reply(session, "1", NOW) == ("✅ Marked #1 Rent as paid. Next one: Tue 5 Jan.", 1)
+    assert await paid_reply(session, "1", NOW) == (
+        "✅ Marked #1 Rent as paid. Next one: Tue 5 Jan.",
+        1,
+    )
     assert await paid_reply(session, "1", NOW) == ("#1 Rent is already paid.", None)
     assert await paid_reply(session, "99", NOW) == ("Bill #99 not found.", None)
     assert await paid_reply(session, "x", NOW) == ("Use /paid <bill number>, e.g. /paid 12", None)
+
 
 async def test_cancelbill_reply(session):
     await addbill_reply(session, ["Gym", "1500", "2026-12-10"])
@@ -581,11 +752,15 @@ import pikepdf, pytest
 from fpdf import FPDF
 from app.sandbox.pdf import PdfLockedError, pdf_to_markdown, unlock_pdf
 
+
 def make_pdf(*lines: str) -> bytes:
-    pdf = FPDF(); pdf.add_page(); pdf.set_font("Helvetica", size=12)
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Helvetica", size=12)
     for line in lines:
         pdf.cell(0, 10, line, new_x="LMARGIN", new_y="NEXT")
     return bytes(pdf.output())
+
 
 def encrypt(data: bytes, password: str) -> bytes:
     out = BytesIO()
@@ -593,19 +768,24 @@ def encrypt(data: bytes, password: str) -> bytes:
         p.save(out, encryption=pikepdf.Encryption(owner="owner-pw", user=password))
     return out.getvalue()
 
+
 BILL = make_pdf("BESCOM Electricity Bill", "Amount Due: Rs. 1,250.50", "Due Date: 20-11-2026")
+
 
 def test_unlock_with_matching_password():
     with pikepdf.open(BytesIO(unlock_pdf(encrypt(BILL, "secret123"), ["wrong", "secret123"]))) as p:
         assert not p.is_encrypted
 
+
 def test_locked_with_no_matching_password():
     with pytest.raises(PdfLockedError):
         unlock_pdf(encrypt(BILL, "secret123"), ["wrong"])
 
+
 def test_unencrypted_passes_through():
     with pikepdf.open(BytesIO(unlock_pdf(BILL, []))) as p:
         assert len(p.pages) == 1
+
 
 @pytest.mark.slow
 def test_pdf_to_markdown_reads_text():
@@ -620,26 +800,46 @@ from app.parsing.jobs import JobKind, ParsedAttachment, ParserJob, write_job
 from app.sandbox.run_job import run_job
 from tests.sandbox.test_pdf import BILL, encrypt
 
+
 def email_with(pdf: bytes) -> bytes:
-    m = EmailMessage(); m["From"] = "billing@bescom.co.in"; m.set_content("Your bill is attached.")
+    m = EmailMessage()
+    m["From"] = "billing@bescom.co.in"
+    m.set_content("Your bill is attached.")
     m.add_attachment(pdf, maintype="application", subtype="pdf", filename="bill.pdf")
     return bytes(m)
+
 
 def job(tmp_path, kind, name, data, id_="21"):
     return write_job(tmp_path, ParserJob(job_id=id_, kind=kind, files=[name]), {name: data})
 
+
 def test_email_pdf_attachment_becomes_markdown(tmp_path):
-    r = run_job(job(tmp_path, JobKind.EMAIL, "message.eml", email_with(BILL)), to_markdown=lambda d: "MD")
+    r = run_job(
+        job(tmp_path, JobKind.EMAIL, "message.eml", email_with(BILL)), to_markdown=lambda d: "MD"
+    )
     assert r.ok and r.attachments == [ParsedAttachment(filename="bill.pdf", markdown="MD")]
 
+
 def test_locked_attachment_reports_pdf_locked(tmp_path):
-    r = run_job(job(tmp_path, JobKind.EMAIL, "message.eml", email_with(encrypt(BILL, "pw"))), to_markdown=lambda d: "MD")
+    r = run_job(
+        job(tmp_path, JobKind.EMAIL, "message.eml", email_with(encrypt(BILL, "pw"))),
+        to_markdown=lambda d: "MD",
+    )
     assert r.ok and r.attachments[0].error == "pdf_locked"
+
 
 def test_pdf_job_and_size_limit(tmp_path):
     r = run_job(job(tmp_path, JobKind.PDF, "document.pdf", BILL), to_markdown=lambda d: "MD")
-    assert (r.text, r.attachments[0].filename, r.attachments[0].markdown) == (None, "document.pdf", "MD")
-    big = run_job(job(tmp_path, JobKind.PDF, "document.pdf", BILL, id_="22"), to_markdown=lambda d: "MD", max_pdf_bytes=10)
+    assert (r.text, r.attachments[0].filename, r.attachments[0].markdown) == (
+        None,
+        "document.pdf",
+        "MD",
+    )
+    big = run_job(
+        job(tmp_path, JobKind.PDF, "document.pdf", BILL, id_="22"),
+        to_markdown=lambda d: "MD",
+        max_pdf_bytes=10,
+    )
     assert big.attachments[0].error == "too_large"
 ```
 
@@ -716,19 +916,54 @@ from app.bills.schemas import BillExtraction as BX, BillKind, BillSource
 from app.llm.ladder import ModelLadder
 from tests.fakes import FakeRunner
 
-def lad(*outs): return ModelLadder(FakeRunner(*outs), None, [])
+
+def lad(*outs):
+    return ModelLadder(FakeRunner(*outs), None, [])
+
 
 async def test_extract_bill_and_renewal():
-    d = await extract_bill(lad(BX(is_bill=True, name="BESCOM electricity", amount_due=Decimal("1250.50"), due_on=date(2026, 11, 20))),
-                           "md", source=BillSource.PDF, external_ref="sha256:x", inbound_message_id=3)
-    assert (d.kind, d.name, d.amount_due, d.external_ref, d.inbound_message_id) == (BillKind.BILL, "BESCOM electricity", Decimal("1250.50"), "sha256:x", 3)
-    r = await extract_bill(lad(BX(is_bill=True, name="Car insurance", amount_due=None, due_on=date(2027, 1, 10))),
-                           "md", source=BillSource.EMAIL, external_ref=None, inbound_message_id=None)
+    d = await extract_bill(
+        lad(
+            BX(
+                is_bill=True,
+                name="BESCOM electricity",
+                amount_due=Decimal("1250.50"),
+                due_on=date(2026, 11, 20),
+            )
+        ),
+        "md",
+        source=BillSource.PDF,
+        external_ref="sha256:x",
+        inbound_message_id=3,
+    )
+    assert (d.kind, d.name, d.amount_due, d.external_ref, d.inbound_message_id) == (
+        BillKind.BILL,
+        "BESCOM electricity",
+        Decimal("1250.50"),
+        "sha256:x",
+        3,
+    )
+    r = await extract_bill(
+        lad(BX(is_bill=True, name="Car insurance", amount_due=None, due_on=date(2027, 1, 10))),
+        "md",
+        source=BillSource.EMAIL,
+        external_ref=None,
+        inbound_message_id=None,
+    )
     assert r.kind is BillKind.RENEWAL
 
+
 async def test_not_a_bill():
-    assert await extract_bill(lad(BX(is_bill=False, name=None, amount_due=None, due_on=None)), "md",
-                              source=BillSource.PDF, external_ref=None, inbound_message_id=None) is None
+    assert (
+        await extract_bill(
+            lad(BX(is_bill=False, name=None, amount_due=None, due_on=None)),
+            "md",
+            source=BillSource.PDF,
+            external_ref=None,
+            inbound_message_id=None,
+        )
+        is None
+    )
 ```
 
 ```python
@@ -743,31 +978,75 @@ from app.parsing.jobs import ParsedAttachment, ParserResult
 from tests.factories import add_inbound
 from tests.fakes import FakeRunner
 
-FOUND = BX(is_bill=True, name="BESCOM electricity", amount_due=Decimal("1250.50"), due_on=date(2026, 11, 20))
+FOUND = BX(
+    is_bill=True,
+    name="BESCOM electricity",
+    amount_due=Decimal("1250.50"),
+    due_on=date(2026, 11, 20),
+)
 NONE = BX(is_bill=False, name=None, amount_due=None, due_on=None)
-def lad(*outs): return ModelLadder(FakeRunner(*outs), None, [])
-def result(inbound, *atts): return ParserResult(job_id=str(inbound.id), ok=True, attachments=list(atts))
+
+
+def lad(*outs):
+    return ModelLadder(FakeRunner(*outs), None, [])
+
+
+def result(inbound, *atts):
+    return ParserResult(job_id=str(inbound.id), ok=True, attachments=list(atts))
+
 
 async def test_telegram_pdf_creates_bill(session):
-    up = await add_inbound(session, text=None, source=InboundSource.TELEGRAM, status=InboundStatus.PROCESSED)
-    [msg] = await intake_documents(session, up, result(up, ParsedAttachment(filename="document.pdf", markdown="md")), lad(FOUND))
+    up = await add_inbound(
+        session, text=None, source=InboundSource.TELEGRAM, status=InboundStatus.PROCESSED
+    )
+    [msg] = await intake_documents(
+        session,
+        up,
+        result(up, ParsedAttachment(filename="document.pdf", markdown="md")),
+        lad(FOUND),
+    )
     assert msg.text.startswith("📄 Added bill #1 BESCOM electricity: ₹1,250.50, due Fri 20 Nov.")
 
+
 async def test_locked_pdf_tells_you(session):
-    up = await add_inbound(session, text=None, source=InboundSource.EMAIL, status=InboundStatus.RECEIVED)
-    [msg] = await intake_documents(session, up, result(up, ParsedAttachment(filename="stmt.pdf", error="pdf_locked")), lad())
-    assert msg.text == "🔒 I couldn't open stmt.pdf: none of the saved PDF passwords worked. Add the password to PDF_PASSWORDS in .env."
+    up = await add_inbound(
+        session, text=None, source=InboundSource.EMAIL, status=InboundStatus.RECEIVED
+    )
+    [msg] = await intake_documents(
+        session, up, result(up, ParsedAttachment(filename="stmt.pdf", error="pdf_locked")), lad()
+    )
+    assert (
+        msg.text
+        == "🔒 I couldn't open stmt.pdf: none of the saved PDF passwords worked. Add the password to PDF_PASSWORDS in .env."
+    )
+
 
 async def test_no_bill_only_reported_for_telegram(session):
-    up = await add_inbound(session, text=None, source=InboundSource.TELEGRAM, status=InboundStatus.PROCESSED)
-    em = await add_inbound(session, text=None, source=InboundSource.EMAIL, status=InboundStatus.RECEIVED, external_id="m9")
+    up = await add_inbound(
+        session, text=None, source=InboundSource.TELEGRAM, status=InboundStatus.PROCESSED
+    )
+    em = await add_inbound(
+        session,
+        text=None,
+        source=InboundSource.EMAIL,
+        status=InboundStatus.RECEIVED,
+        external_id="m9",
+    )
     att = ParsedAttachment(filename="document.pdf", markdown="md")
-    assert [m.text for m in await intake_documents(session, up, result(up, att), lad(NONE))] == ["I couldn't find a bill in document.pdf."]
+    assert [m.text for m in await intake_documents(session, up, result(up, att), lad(NONE))] == [
+        "I couldn't find a bill in document.pdf."
+    ]
     assert await intake_documents(session, em, result(em, att), lad(NONE)) == []
 
+
 async def test_bill_email_body(session):
-    em = await add_inbound(session, text="Your BESCOM bill of Rs.1,250.50 is due on 20-11-2026.", source=InboundSource.EMAIL,
-                           status=InboundStatus.IGNORED, external_id="m1")
+    em = await add_inbound(
+        session,
+        text="Your BESCOM bill of Rs.1,250.50 is due on 20-11-2026.",
+        source=InboundSource.EMAIL,
+        status=InboundStatus.IGNORED,
+        external_id="m1",
+    )
     em.error = "future_debit"
     [msg] = await intake_text(session, em, lad(FOUND))
     assert "BESCOM electricity" in msg.text
@@ -779,15 +1058,26 @@ from datetime import UTC, datetime
 from app.bot.actions import pdf_upload_problem, queue_pdf_upload
 from app.parsing.jobs import JobKind, ParserJob
 
+
 def test_pdf_upload_problem():
     assert pdf_upload_problem("image/png", 100, 10_000_000) == "Please send the bill as a PDF."
-    assert pdf_upload_problem("application/pdf", 20_000_000, 10_000_000) == "That PDF is too large (max 10 MB)."
+    assert (
+        pdf_upload_problem("application/pdf", 20_000_000, 10_000_000)
+        == "That PDF is too large (max 10 MB)."
+    )
     assert pdf_upload_problem("application/pdf", 100, 10_000_000) is None
+
 
 async def test_queue_pdf_upload(session, tmp_path):
     now = datetime(2026, 11, 6, 4, 0, tzinfo=UTC)
-    assert await queue_pdf_upload(session, tmp_path, file_unique_id="AgAD1", data=b"%PDF", now=now) == "📥 Got it, reading the PDF…"
-    assert await queue_pdf_upload(session, tmp_path, file_unique_id="AgAD1", data=b"%PDF", now=now) == "I already have that file."
+    assert (
+        await queue_pdf_upload(session, tmp_path, file_unique_id="AgAD1", data=b"%PDF", now=now)
+        == "📥 Got it, reading the PDF…"
+    )
+    assert (
+        await queue_pdf_upload(session, tmp_path, file_unique_id="AgAD1", data=b"%PDF", now=now)
+        == "I already have that file."
+    )
     [job_dir] = list(tmp_path.iterdir())
     assert ParserJob.model_validate_json((job_dir / "job.json").read_text()).kind is JobKind.PDF
 ```
@@ -842,27 +1132,46 @@ from app.mail.calendar import CalendarEvent, SyncReport, sync_renewals
 from tests.fakes import FakeCalendar
 
 TODAY = date(2026, 11, 6)
-PASSPORT = CalendarEvent(id="ev1", summary="Passport renewal", start=date(2027, 3, 15), cancelled=False)
+PASSPORT = CalendarEvent(
+    id="ev1", summary="Passport renewal", start=date(2027, 3, 15), cancelled=False
+)
+
 
 async def bills(session):
     return (await session.scalars(select(Bill).order_by(Bill.id))).all()
 
+
 async def test_creates_renewal_once(session):
     cal = FakeCalendar([PASSPORT])
-    assert await sync_renewals(session, cal, "cal", TODAY) == SyncReport(created=1, cancelled=0, moved=0)
-    assert await sync_renewals(session, cal, "cal", TODAY) == SyncReport(created=0, cancelled=0, moved=0)
+    assert await sync_renewals(session, cal, "cal", TODAY) == SyncReport(
+        created=1, cancelled=0, moved=0
+    )
+    assert await sync_renewals(session, cal, "cal", TODAY) == SyncReport(
+        created=0, cancelled=0, moved=0
+    )
     [b] = await bills(session)
-    assert (b.kind, b.name, b.due_on, b.amount_due) == (BillKind.RENEWAL, "Passport renewal", date(2027, 3, 15), None)
+    assert (b.kind, b.name, b.due_on, b.amount_due) == (
+        BillKind.RENEWAL,
+        "Passport renewal",
+        date(2027, 3, 15),
+        None,
+    )
+
 
 async def test_cancelled_event_cancels_bill(session):
     await sync_renewals(session, FakeCalendar([PASSPORT]), "cal", TODAY)
-    gone = CalendarEvent(id="ev1", summary="Passport renewal", start=date(2027, 3, 15), cancelled=True)
+    gone = CalendarEvent(
+        id="ev1", summary="Passport renewal", start=date(2027, 3, 15), cancelled=True
+    )
     assert (await sync_renewals(session, FakeCalendar([gone]), "cal", TODAY)).cancelled == 1
     assert (await bills(session))[0].status is BillStatus.CANCELLED
 
+
 async def test_moved_event_replaces_bill(session):
     await sync_renewals(session, FakeCalendar([PASSPORT]), "cal", TODAY)
-    moved = CalendarEvent(id="ev1", summary="Passport renewal", start=date(2027, 4, 1), cancelled=False)
+    moved = CalendarEvent(
+        id="ev1", summary="Passport renewal", start=date(2027, 4, 1), cancelled=False
+    )
     assert (await sync_renewals(session, FakeCalendar([moved]), "cal", TODAY)).moved == 1
     old, new = await bills(session)
     assert (old.status, old.external_ref) == (BillStatus.CANCELLED, "ev1@2027-03-15")
