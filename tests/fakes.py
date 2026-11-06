@@ -1,5 +1,7 @@
 from typing import Any
 
+from app.notify.telegram import Keyboard, Outgoing
+
 
 class FakeRunner:
     def __init__(self, *outputs: Any):
@@ -16,3 +18,17 @@ class FakeRunner:
         if isinstance(out, Exception):
             raise out
         return out
+
+
+class FakeNotifier:
+    def __init__(self) -> None:
+        self.sent: list[Outgoing] = []
+
+    async def send(self, text: str, keyboard: Keyboard | None = None) -> None:
+        self.sent.append(Outgoing(text=text, keyboard=keyboard))
+
+
+class FailingNotifier:
+    async def send(self, text: str, keyboard: Keyboard | None = None) -> None:
+        raise RuntimeError("telegram down")
+
