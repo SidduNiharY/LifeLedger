@@ -66,3 +66,12 @@ class CategoryDecision(BaseModel):
     suggested: Category
     source: CategorySource | None = None
     confidence: float | None = None
+
+
+class SpendSummary(BaseModel):
+    year: int
+    month: int
+    total: Decimal
+    by_category: list[tuple[Category | None, Decimal]]
+    income: Decimal
+
