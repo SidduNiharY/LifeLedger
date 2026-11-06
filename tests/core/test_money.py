@@ -18,7 +18,12 @@ from app.core.money import format_inr, parse_inr_amount
         ("  rs. 10  ", "10.00"),
         ("inr100", "100.00"),
         ("0", "0.00"),
-        ("123456789012.345", "123456789012.35"),
+        ("Rs.1,250/-", "1250.00"),
+        ("500.00/-", "500.00"),
+        ("1,250 /-", "1250.00"),
+        ("9,99,99,99,999.99", "9999999999.99"),
+        ("1,234,567", "1234567.00"),
+        ("12,345.5", "12345.50"),
     ],
 )
 def test_parse_inr_amount(text, expected):
@@ -26,7 +31,34 @@ def test_parse_inr_amount(text, expected):
 
 
 @pytest.mark.parametrize(
-    "text", ["", "abc", "1.2.3", "-5", "   ", "Rs.", "₹", "1e5", "Rs -5", "NaN", "5 0"]
+    "text",
+    [
+        "",
+        "abc",
+        "1.2.3",
+        "-5",
+        "   ",
+        "Rs.",
+        "₹",
+        "1e5",
+        "Rs -5",
+        "NaN",
+        "5 0",
+        "5/",
+        "/-",
+        "Rs/-",
+        "1,2,3,4",
+        ",123",
+        "1,,2",
+        "15,00",
+        "1.250,50",
+        "123456789012.345",
+        "10000000000.00",
+        "10,00,00,00,000.00",
+        "१२३",
+        "١٢٣",
+        "１２３",
+    ],
 )
 def test_parse_inr_amount_rejects(text):
     with pytest.raises(ValueError):
@@ -57,3 +89,13 @@ def test_format_inr(amount, expected):
 def test_format_inr_rejects_negative():
     with pytest.raises(ValueError):
         format_inr(Decimal("-1"))
+
+
+@pytest.mark.parametrize("bad", ["NaN", "Infinity", "-Infinity"])
+def test_format_inr_rejects_non_finite(bad):
+    with pytest.raises(ValueError):
+        format_inr(Decimal(bad))
+
+
+def test_format_inr_negative_zero():
+    assert format_inr(Decimal("-0.00")) == "₹0.00"

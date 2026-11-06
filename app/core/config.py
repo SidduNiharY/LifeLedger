@@ -1,7 +1,8 @@
 from functools import lru_cache
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
-from pydantic import Field, SecretStr
+from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -46,6 +47,15 @@ class Settings(BaseSettings):
     google_token_path: Path = Path("secrets/token.json")
     max_email_bytes: int = 10_000_000
     raw_retention_days: int = 30
+
+    @field_validator("timezone")
+    @classmethod
+    def _known_timezone(cls, value: str) -> str:
+        try:
+            ZoneInfo(value)
+        except Exception as exc:
+            raise ValueError(f"unknown timezone: {value!r}") from exc
+        return value
 
     @property
     def cloud_enabled(self) -> bool:

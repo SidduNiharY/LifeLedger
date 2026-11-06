@@ -90,3 +90,10 @@ def test_env_example_loads():
     env_example = Path(__file__).resolve().parents[2] / ".env.example"
     s = Settings(_env_file=env_example)
     assert s.cloud_enabled is False
+
+
+def test_unknown_timezone_fails_at_startup(monkeypatch):
+    monkeypatch.setenv("DATABASE_URL", "postgresql+asyncpg://u:p@h/db")
+    monkeypatch.setenv("TIMEZONE", "Asia/Kolkatta")
+    with pytest.raises(ValueError, match="timezone"):
+        Settings(_env_file=None)
