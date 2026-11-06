@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pytest
 
 from app.core.config import MissingSettingError, Settings
@@ -72,3 +74,19 @@ def test_empty_anthropic_key_does_not_enable_cloud(monkeypatch):
 def test_repr_hides_database_password(monkeypatch):
     monkeypatch.setenv("DATABASE_URL", "postgresql+asyncpg://u:hunter2@db:5432/x")
     assert "hunter2" not in repr(Settings(_env_file=None))
+
+
+def test_empty_anthropic_key_passed_directly_does_not_enable_cloud():
+    s = Settings(
+        _env_file=None,
+        database_url="postgresql+asyncpg://u:p@db:5432/x",
+        allow_cloud_llm=True,
+        anthropic_api_key="",
+    )
+    assert s.cloud_enabled is False
+
+
+def test_env_example_loads():
+    env_example = Path(__file__).resolve().parents[2] / ".env.example"
+    s = Settings(_env_file=env_example)
+    assert s.cloud_enabled is False
