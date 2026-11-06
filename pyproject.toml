@@ -32,13 +32,16 @@ dev = [
 [tool.ruff]
 line-length = 100
 target-version = "py314"
+extend-exclude = ["*.md"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "ASYNC"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+asyncio_default_test_loop_scope = "function"
 pythonpath = ["."]
 testpaths = ["tests"]
-addopts = "--import-mode=importlib -m 'not slow'"
+addopts = "--import-mode=importlib --strict-markers -m 'not slow'"
 markers = ["slow: needs heavy models such as Docling; run with -m slow"]

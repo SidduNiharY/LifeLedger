@@ -1,5 +1,6 @@
 name: ci
 on: [push, pull_request]
+permissions: { contents: read }
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -14,7 +15,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
-      - run: uv sync --frozen --all-extras
+      - run: uv sync --locked --all-extras
       - run: uv run ruff check .
       - run: uv run ruff format --check .
       - run: uv run pytest

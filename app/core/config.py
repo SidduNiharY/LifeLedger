@@ -1,7 +1,7 @@
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import SecretStr
+from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -9,10 +9,16 @@ class MissingSettingError(RuntimeError):
     """Raised when a setting a component needs is not configured."""
 
 
-class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+def _is_blank(value: object) -> bool:
+    if isinstance(value, SecretStr):
+        value = value.get_secret_value()
+    return value is None or value == ""
 
-    database_url: str
+
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore", env_ignore_empty=True)
+
+    database_url: str = Field(repr=False)
 
     telegram_bot_token: SecretStr | None = None
     telegram_owner_chat_id: int | None = None
@@ -43,10 +49,10 @@ class Settings(BaseSettings):
 
     @property
     def cloud_enabled(self) -> bool:
-        return self.allow_cloud_llm and self.anthropic_api_key is not None
+        return self.allow_cloud_llm and not _is_blank(self.anthropic_api_key)
 
     def require(self, *field_names: str) -> None:
-        missing = [name.upper() for name in field_names if getattr(self, name) is None]
+        missing = [name.upper() for name in field_names if _is_blank(getattr(self, name))]
         if missing:
             raise MissingSettingError(f"Missing required settings: {', '.join(missing)}")
 

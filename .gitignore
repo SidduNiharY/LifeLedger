@@ -6,3 +6,10 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 evals/report.json
+.DS_Store
+.env.*
+!.env.example
+credentials.json
+token.json
+*.egg-info
+.coverage
