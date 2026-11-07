@@ -43,6 +43,8 @@ class Settings(BaseSettings):
     gmail_label: str = "LifeLedger"
     gmail_backfill_days: int = 30
     gmail_poll_seconds: int = 120
+    renewals_calendar_id: str | None = None
+    calendar_sync_hours: int = 6
     google_credentials_path: Path = Path("secrets/credentials.json")
     google_token_path: Path = Path("secrets/token.json")
     max_email_bytes: int = 10_000_000

@@ -1,6 +1,9 @@
+from collections.abc import Sequence
+from datetime import datetime
 from typing import Any
 
 from app.bills.schemas import ReminderTime
+from app.mail.calendar import CalendarEvent
 from app.mail.gmail import GmailMetadata
 from app.notify.telegram import Keyboard, Outgoing
 
@@ -80,3 +83,15 @@ class FakeBillWorkflows:
 
     async def cancel(self, bill_id: int) -> None:
         self.cancelled.append(bill_id)
+
+
+class FakeCalendar:
+    def __init__(self, events: Sequence[CalendarEvent] = ()) -> None:
+        self.events = list(events)
+        self.calls: list[tuple[str, datetime, datetime]] = []
+
+    def list_events(
+        self, calendar_id: str, time_min: datetime, time_max: datetime
+    ) -> list[CalendarEvent]:
+        self.calls.append((calendar_id, time_min, time_max))
+        return list(self.events)
