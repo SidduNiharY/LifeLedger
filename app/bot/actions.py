@@ -151,7 +151,7 @@ async def due_reply(session: AsyncSession, today: date) -> str:
 async def paid_reply(session: AsyncSession, arg: str, now: datetime) -> tuple[str, int | None]:
     try:
         bill_id = int(arg.strip())
-    except ValueError, AttributeError:
+    except (ValueError, AttributeError):
         return ("Use /paid <bill number>, e.g. /paid 12", None)
 
     bill = await get_bill(session, bill_id)
@@ -171,7 +171,7 @@ async def paid_reply(session: AsyncSession, arg: str, now: datetime) -> tuple[st
 async def cancelbill_reply(session: AsyncSession, arg: str) -> tuple[str, int | None]:
     try:
         bill_id = int(arg.strip())
-    except ValueError, AttributeError:
+    except (ValueError, AttributeError):
         return ("Use /cancelbill <bill number>, e.g. /cancelbill 12", None)
 
     bill = await get_bill(session, bill_id)
