@@ -74,6 +74,23 @@ Complete these setup steps before starting the production stack:
   # Expected output: {"status":"received","id":1}
   ```
 
+## Claude Desktop (FastMCP Integration)
+
+LifeLedger includes a read-only FastMCP server exposing four read-only tools to Claude Desktop (`get_spend`, `list_transactions`, `list_upcoming_bills`, and `list_subscriptions`).
+
+1. Configure `MCP_DB_PASSWORD` in `.env`.
+2. Provision login credentials for the read-only database role:
+   ```bash
+   ./scripts/create_readonly_login.sh
+   ```
+3. Add the server configuration to Claude Desktop (`claude_desktop_config.json`):
+   ```json
+   { "mcpServers": { "lifeledger": {
+       "command": "uv",
+       "args": ["--directory", "/Users/siddumanju/Desktop/Resume Projects/LifeLedger", "run", "python", "-m", "app.mcp.server"],
+       "env": { "MCP_DATABASE_URL": "postgresql+asyncpg://lifeledger_ro:<password>@127.0.0.1:5432/lifeledger" } } } }
+   ```
+
 ## Privacy & Security Rules
 
 LifeLedger is built under strict architectural guardrails:
