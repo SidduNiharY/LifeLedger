@@ -5,6 +5,8 @@ from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.bills.models import Bill
+from app.bills.schemas import BillKind, BillSource, BillStatus, Recurrence
 from app.inbound.models import InboundMessage, InboundSource, InboundStatus
 from app.ledger.categories import Category
 from app.ledger.models import Transaction
@@ -170,3 +172,20 @@ def make_deps(
         threshold=threshold,
         tz=tz,
     )
+
+
+async def add_bill(session: AsyncSession, **overrides: Any) -> Bill:
+    base = dict(
+        kind=BillKind.BILL,
+        name="Electricity",
+        amount_due=Decimal("1250.50"),
+        due_on=date(2026, 11, 20),
+        payee_keywords=["BESCOM"],
+        recurrence=Recurrence.NONE,
+        source=BillSource.MANUAL,
+        status=BillStatus.OPEN,
+    )
+    bill = Bill(**(base | overrides))
+    session.add(bill)
+    await session.flush()
+    return bill
