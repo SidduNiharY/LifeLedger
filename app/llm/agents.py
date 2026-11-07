@@ -7,10 +7,11 @@ from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers.anthropic import AnthropicProvider
 from pydantic_ai.providers.ollama import OllamaProvider
 
+from app.bills.schemas import BillExtraction
 from app.core.config import Settings
 from app.ledger.schemas import AlertExtraction, CategoryGuess
 from app.llm.ladder import ModelLadder, Runner
-from app.llm.prompts import CATEGORISE_INSTRUCTIONS, EXTRACT_INSTRUCTIONS
+from app.llm.prompts import BILL_INSTRUCTIONS, CATEGORISE_INSTRUCTIONS, EXTRACT_INSTRUCTIONS
 
 
 def build_local_model(settings: Settings) -> Model:
@@ -62,6 +63,7 @@ def make_runner[T](
 class Ladders:
     extract: ModelLadder[AlertExtraction]
     categorise: ModelLadder[CategoryGuess]
+    bill: ModelLadder[BillExtraction]
 
 
 def build_ladders(settings: Settings) -> Ladders:
@@ -83,7 +85,15 @@ def build_ladders(settings: Settings) -> Ladders:
         else None
     )
 
+    local_bill = make_runner(local_model, BillExtraction, BILL_INSTRUCTIONS)
+    cloud_bill = (
+        make_runner(cloud_model, BillExtraction, BILL_INSTRUCTIONS)
+        if cloud_model is not None
+        else None
+    )
+
     return Ladders(
         extract=ModelLadder(local_extract, cloud_extract, settings.owner_names),
         categorise=ModelLadder(local_categorise, cloud_categorise, settings.owner_names),
+        bill=ModelLadder(local_bill, cloud_bill, settings.owner_names),
     )

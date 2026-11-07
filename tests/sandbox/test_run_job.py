@@ -79,4 +79,3 @@ def test_pdf_error_reports_pdf_error(tmp_path):
 
     r = run_job(job(tmp_path, JobKind.PDF, "document.pdf", BILL), to_markdown=fail_markdown)
     assert r.ok and r.attachments[0].error == "pdf_error"
-

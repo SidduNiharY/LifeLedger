@@ -80,7 +80,10 @@ def test_build_ladders():
     ladders = build_ladders(settings)
     assert ladders.extract is not None
     assert ladders.categorise is not None
+    assert ladders.bill is not None
     assert ladders.extract.cloud is not None
     assert ladders.categorise.cloud is not None
+    assert ladders.bill.cloud is not None
     assert ladders.extract.owner_names == ["Siddu"]
     assert ladders.categorise.owner_names == ["Siddu"]
+    assert ladders.bill.owner_names == ["Siddu"]

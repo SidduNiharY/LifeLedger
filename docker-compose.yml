@@ -78,6 +78,8 @@ services:
     user: "1000:1000"
     restart: unless-stopped
     command: python -m app.bot.main
+    volumes:
+      - ./data/inbox:/data/inbox
     depends_on:
       migrate:
         condition: service_completed_successfully

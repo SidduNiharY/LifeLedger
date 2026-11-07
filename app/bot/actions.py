@@ -3,6 +3,7 @@ import logging
 import re
 from collections.abc import Callable, Coroutine
 from datetime import date, datetime
+from pathlib import Path
 from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -12,6 +13,8 @@ from app.bills.render import render_due_list, render_new_bill
 from app.bills.repo import bills_due_within, cancel_bill, close_bill, create_bill, get_bill
 from app.bills.schemas import BillStatus
 from app.core.timeutil import format_day
+from app.inbound.models import InboundSource, InboundStatus
+from app.inbound.repo import create_inbound
 from app.ledger.categories import Category
 from app.ledger.models import Transaction
 from app.ledger.repo import (
@@ -28,6 +31,7 @@ from app.notify.render import (
     render_spend,
 )
 from app.notify.telegram import Outgoing
+from app.parsing.jobs import JobKind, ParserJob, write_job
 
 logger = logging.getLogger(__name__)
 
@@ -151,7 +155,7 @@ async def due_reply(session: AsyncSession, today: date) -> str:
 async def paid_reply(session: AsyncSession, arg: str, now: datetime) -> tuple[str, int | None]:
     try:
         bill_id = int(arg.strip())
-    except (ValueError, AttributeError):
+    except ValueError, AttributeError:
         return ("Use /paid <bill number>, e.g. /paid 12", None)
 
     bill = await get_bill(session, bill_id)
@@ -171,7 +175,7 @@ async def paid_reply(session: AsyncSession, arg: str, now: datetime) -> tuple[st
 async def cancelbill_reply(session: AsyncSession, arg: str) -> tuple[str, int | None]:
     try:
         bill_id = int(arg.strip())
-    except (ValueError, AttributeError):
+    except ValueError, AttributeError:
         return ("Use /cancelbill <bill number>, e.g. /cancelbill 12", None)
 
     bill = await get_bill(session, bill_id)
@@ -183,6 +187,39 @@ async def cancelbill_reply(session: AsyncSession, arg: str) -> tuple[str, int | 
 
     await cancel_bill(session, bill)
     return (f"🗑️ Cancelled #{bill.id} {bill.name}. No more reminders.", bill.id)
+
+
+def pdf_upload_problem(mime_type: str | None, size: int | None, max_bytes: int) -> str | None:
+    if mime_type != "application/pdf":
+        return "Please send the bill as a PDF."
+    if size is not None and size > max_bytes:
+        return "That PDF is too large (max 10 MB)."
+    return None
+
+
+async def queue_pdf_upload(
+    session: AsyncSession,
+    inbox_dir: Path,
+    *,
+    file_unique_id: str,
+    data: bytes,
+    now: datetime,
+) -> str:
+    inbound, created = await create_inbound(
+        session,
+        source=InboundSource.TELEGRAM,
+        external_id=file_unique_id,
+        sender="owner",
+        received_at=now,
+        status=InboundStatus.QUEUED,
+        sender_trusted=True,
+    )
+    if not created:
+        return "I already have that file."
+
+    job = ParserJob(job_id=str(inbound.id), kind=JobKind.PDF, files=["document.pdf"])
+    write_job(inbox_dir, job, {"document.pdf": data})
+    return "📥 Got it, reading the PDF…"
 
 
 def owner_only(

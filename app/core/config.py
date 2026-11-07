@@ -46,6 +46,7 @@ class Settings(BaseSettings):
     google_credentials_path: Path = Path("secrets/credentials.json")
     google_token_path: Path = Path("secrets/token.json")
     max_email_bytes: int = 10_000_000
+    max_upload_bytes: int = 10_000_000
     raw_retention_days: int = 30
 
     temporal_address: str = "temporal:7233"

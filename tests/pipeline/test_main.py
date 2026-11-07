@@ -1,12 +1,18 @@
-import pytest
+from datetime import date
+from decimal import Decimal
 
+import pytest
+from sqlalchemy import select
+
+from app.bills.models import Bill
+from app.bills.schemas import BillExtraction
 from app.core.config import MissingSettingError, Settings
 from app.inbound.models import InboundSource
 from app.inbound.models import InboundStatus as St
 from app.ledger.categories import Category as C
 from app.ledger.repo import remember_merchant
 from app.ledger.schemas import CategoryGuess
-from app.parsing.jobs import ParserResult
+from app.parsing.jobs import ParsedAttachment, ParserResult
 from app.pipeline.main import main, run_batch
 from tests.factories import T0, add_inbound, make_deps
 from tests.fakes import FailingNotifier, FakeNotifier, FakeRunner
@@ -66,3 +72,39 @@ def test_main_missing_settings(monkeypatch):
     )
     with pytest.raises(MissingSettingError, match="TELEGRAM_BOT_TOKEN"):
         main()
+
+
+async def test_telegram_pdf_result_creates_bill_and_messages(sessionmaker, tmp_path):
+    async with sessionmaker() as s, s.begin():
+        inbound = await add_inbound(
+            s,
+            text=None,
+            source=InboundSource.TELEGRAM,
+            status=St.QUEUED,
+            created_at=T0,
+        )
+    result = ParserResult(
+        job_id=str(inbound.id),
+        ok=True,
+        attachments=[ParsedAttachment(filename="bill.pdf", markdown="# BESCOM bill")],
+    )
+    (tmp_path / f"{inbound.id}.json").write_text(result.model_dump_json())
+    found_bill = BillExtraction(
+        is_bill=True,
+        name="BESCOM electricity",
+        amount_due=Decimal("1250.50"),
+        due_on=date(2026, 11, 20),
+    )
+    deps = make_deps(bill_local=FakeRunner(found_bill))
+    notifier = FakeNotifier()
+    report = await run_batch(sessionmaker, deps, notifier, tmp_path, now=T0)
+    assert report.collected == 1
+    async with sessionmaker() as s:
+        updated = await s.get(type(inbound), inbound.id)
+        assert updated.status is St.PROCESSED
+        res = await s.execute(select(Bill))
+        bills = list(res.scalars().all())
+        assert len(bills) == 1
+        assert bills[0].name == "BESCOM electricity"
+    assert len(notifier.sent) == 1
+    assert "BESCOM electricity" in notifier.sent[0].text

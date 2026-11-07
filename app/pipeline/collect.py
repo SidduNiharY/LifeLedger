@@ -6,7 +6,7 @@ from pathlib import Path
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.inbound.models import InboundMessage, InboundStatus
+from app.inbound.models import InboundMessage, InboundSource, InboundStatus
 from app.parsing.jobs import ParserResult
 
 
@@ -61,7 +61,10 @@ async def collect_parser_results(
 
             if parser_result.ok:
                 inbound.text = parser_result.text
-                inbound.status = InboundStatus.RECEIVED
+                if inbound.source == InboundSource.TELEGRAM:
+                    inbound.status = InboundStatus.PROCESSED
+                else:
+                    inbound.status = InboundStatus.RECEIVED
                 collected.append((inbound, parser_result))
             else:
                 inbound.status = InboundStatus.FAILED

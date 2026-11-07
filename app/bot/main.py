@@ -8,6 +8,8 @@ from telegram.ext import (
     CallbackQueryHandler,
     CommandHandler,
     ContextTypes,
+    MessageHandler,
+    filters,
 )
 
 from app.bot.actions import (
@@ -19,6 +21,8 @@ from app.bot.actions import (
     fix_message,
     owner_only,
     paid_reply,
+    pdf_upload_problem,
+    queue_pdf_upload,
     recent_reply,
     review_messages,
     spend_reply,
@@ -163,6 +167,29 @@ def build_application(
                 answer_text = await answer_category(session, data)
         await query.edit_message_text(text=answer_text)
 
+    async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        if not update.effective_message or not update.effective_message.document:
+            return
+        doc = update.effective_message.document
+        problem = pdf_upload_problem(doc.mime_type, doc.file_size, settings.max_upload_bytes)
+        if problem is not None:
+            await update.effective_message.reply_text(problem)
+            return
+
+        file = await doc.get_file()
+        data = await file.download_as_bytearray()
+        now = datetime.now(UTC)
+        async with sessionmaker() as session:
+            async with session.begin():
+                reply = await queue_pdf_upload(
+                    session,
+                    settings.inbox_dir,
+                    file_unique_id=doc.file_unique_id,
+                    data=bytes(data),
+                    now=now,
+                )
+        await update.effective_message.reply_text(reply)
+
     app.add_handler(CommandHandler("spend", guard(handle_spend)))
     app.add_handler(CommandHandler("recent", guard(handle_recent)))
     app.add_handler(CommandHandler("review", guard(handle_review)))
@@ -173,6 +200,7 @@ def build_application(
     app.add_handler(CommandHandler("paid", guard(handle_paid)))
     app.add_handler(CommandHandler("cancelbill", guard(handle_cancelbill)))
     app.add_handler(CallbackQueryHandler(guard(handle_category_callback), pattern=r"^cat:"))
+    app.add_handler(MessageHandler(filters.Document.ALL, guard(handle_document)))
 
     return app
 

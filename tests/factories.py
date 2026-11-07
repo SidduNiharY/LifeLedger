@@ -6,7 +6,7 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.bills.models import Bill
-from app.bills.schemas import BillKind, BillSource, BillStatus, Recurrence
+from app.bills.schemas import BillExtraction, BillKind, BillSource, BillStatus, Recurrence
 from app.inbound.models import InboundMessage, InboundSource, InboundStatus
 from app.ledger.categories import Category
 from app.ledger.models import Transaction
@@ -154,6 +154,7 @@ async def add_inbound(
 def make_deps(
     extract_local: Runner[AlertExtraction] | None = None,
     categorise_local: Runner[CategoryGuess] | None = None,
+    bill_local: Runner[BillExtraction] | None = None,
     cloud: Runner[Any] | None = None,
     threshold: float = 0.8,
     tz: str = "Asia/Kolkata",
@@ -166,6 +167,11 @@ def make_deps(
         ),
         categorise=ModelLadder(
             local=categorise_local or FakeRunner(),
+            cloud=cloud,
+            owner_names=[],
+        ),
+        bill=ModelLadder(
+            local=bill_local or FakeRunner(),
             cloud=cloud,
             owner_names=[],
         ),

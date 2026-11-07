@@ -10,11 +10,12 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from app.bills.intake import intake_documents, intake_text
 from app.bills.service import ensure_bill_workflows
 from app.core.config import Settings, get_settings
 from app.core.db import make_engine, make_sessionmaker
 from app.core.logging import setup_logging
-from app.inbound.models import InboundMessage, InboundStatus
+from app.inbound.models import InboundMessage, InboundSource, InboundStatus
 from app.ledger.schemas import TxnStatus
 from app.llm.agents import build_ladders
 from app.notify.telegram import Notifier, Outgoing, TelegramNotifier
@@ -74,6 +75,15 @@ async def run_batch(
             collected_pairs = await collect_parser_results(session, outbox_dir, now=now)
             collected_count = len(collected_pairs)
 
+    all_outgoing: list[Outgoing] = []
+
+    # 1b. Document intake for collected parser results in their own transactions
+    for inbound, result in collected_pairs:
+        async with sessionmaker() as session:
+            async with session.begin():
+                doc_outgoing = await intake_documents(session, inbound, result, deps.bill)
+                all_outgoing.extend(doc_outgoing)
+
     # Find RECEIVED inbounds up to limit (oldest first)
     async with sessionmaker() as session:
         stmt = (
@@ -100,6 +110,12 @@ async def run_batch(
                     res = await process_inbound(session, inbound, deps)
                     results.append(res)
                     processed_count += 1
+                    if (
+                        inbound.source == InboundSource.EMAIL
+                        and inbound.status == InboundStatus.IGNORED
+                    ):
+                        text_outgoing = await intake_text(session, inbound, deps.bill)
+                        all_outgoing.extend(text_outgoing)
         except Exception as exc:
             logger.exception("Error processing inbound message %s", inbound_id)
             failed_count += 1
@@ -115,7 +131,6 @@ async def run_batch(
 
     # 3. After the commits, send every ProcessResult.outgoing plus
     # review_notifications(new NEEDS_REVIEW txns)
-    all_outgoing: list[Outgoing] = []
     for r in results:
         all_outgoing.extend(r.outgoing)
 
@@ -175,6 +190,7 @@ async def run_loop(
     deps = PipelineDeps(
         extract=ladders.extract,
         categorise=ladders.categorise,
+        bill=ladders.bill,
         threshold=settings.category_confidence_threshold,
         tz=settings.timezone,
     )

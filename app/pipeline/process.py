@@ -2,6 +2,7 @@ from dataclasses import dataclass, field
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.bills.schemas import BillExtraction
 from app.inbound.models import InboundMessage, InboundStatus
 from app.ledger.categorise import categorise
 from app.ledger.merchants import merchant_key
@@ -19,6 +20,7 @@ from app.parsing.rules import parse_alert_text
 class PipelineDeps:
     extract: ModelLadder[AlertExtraction]
     categorise: ModelLadder[CategoryGuess]
+    bill: ModelLadder[BillExtraction]
     threshold: float
     tz: str
 
