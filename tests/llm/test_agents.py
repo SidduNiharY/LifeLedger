@@ -55,11 +55,7 @@ def test_prompts():
         "swiggy@icici",
         "SWIGGY",
     )
-    assert cp == (
-        "Transaction: debit of ₹450.00\n"
-        "Payee/payer: swiggy@icici\n"
-        "Merchant key: SWIGGY"
-    )
+    assert cp == ("Transaction: debit of ₹450.00\nPayee/payer: swiggy@icici\nMerchant key: SWIGGY")
 
     cp_none = categorise_prompt(
         Direction.CREDIT,
@@ -68,9 +64,7 @@ def test_prompts():
         None,
     )
     assert cp_none == (
-        "Transaction: credit of ₹50,000.00\n"
-        "Payee/payer: unknown\n"
-        "Merchant key: unknown"
+        "Transaction: credit of ₹50,000.00\nPayee/payer: unknown\nMerchant key: unknown"
     )
 
 

@@ -40,11 +40,7 @@ async def categorise(
     res = await ladder.run(prompt, accept=lambda g: g.confidence >= threshold)
 
     if res.accepted:
-        source = (
-            CategorySource.LOCAL_LLM
-            if res.tier == Tier.LOCAL
-            else CategorySource.CLOUD_LLM
-        )
+        source = CategorySource.LOCAL_LLM if res.tier == Tier.LOCAL else CategorySource.CLOUD_LLM
         return CategoryDecision(
             status=TxnStatus.CATEGORISED,
             category=res.accepted.category,

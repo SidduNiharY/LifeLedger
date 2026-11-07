@@ -5,7 +5,11 @@ from app.ledger.categorise import categorise
 from app.ledger.repo import remember_merchant
 from app.ledger.schemas import (
     CategoryGuess as G,
+)
+from app.ledger.schemas import (
     CategorySource as Src,
+)
+from app.ledger.schemas import (
     Direction,
     TxnStatus,
 )

@@ -36,11 +36,7 @@ def build_application(
         raise ValueError("telegram_owner_chat_id is required")
     guard = owner_only(owner_id)
 
-    token = (
-        settings.telegram_bot_token.get_secret_value()
-        if settings.telegram_bot_token
-        else ""
-    )
+    token = settings.telegram_bot_token.get_secret_value() if settings.telegram_bot_token else ""
     app = Application.builder().token(token).build()
 
     async def handle_spend(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -81,9 +77,7 @@ def build_application(
                 reply_markup=to_markup(msg.keyboard),
             )
 
-    async def handle_category_callback(
-        update: Update, context: ContextTypes.DEFAULT_TYPE
-    ) -> None:
+    async def handle_category_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         query = update.callback_query
         if not query:
             return

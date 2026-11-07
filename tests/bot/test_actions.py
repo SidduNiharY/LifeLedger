@@ -128,4 +128,3 @@ def test_build_application():
     app = build_application(settings, sessionmaker)
     assert app is not None
     assert len(app.handlers[0]) == 5
-

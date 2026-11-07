@@ -91,16 +91,12 @@ async def save_transaction(
     return t
 
 
-async def lookup_merchant_category(
-    session: AsyncSession, merchant_key: str
-) -> Category | None:
+async def lookup_merchant_category(session: AsyncSession, merchant_key: str) -> Category | None:
     rule = await session.get(MerchantRule, merchant_key)
     return rule.category if rule else None
 
 
-async def remember_merchant(
-    session: AsyncSession, merchant_key: str, category: Category
-) -> None:
+async def remember_merchant(session: AsyncSession, merchant_key: str, category: Category) -> None:
     stmt = (
         insert(MerchantRule)
         .values(merchant_key=merchant_key, category=category)
@@ -113,9 +109,7 @@ async def remember_merchant(
     await session.flush()
 
 
-async def apply_user_category(
-    session: AsyncSession, txn_id: int, category: Category
-) -> list[int]:
+async def apply_user_category(session: AsyncSession, txn_id: int, category: Category) -> list[int]:
     t = await session.get(Transaction, txn_id)
     if not t:
         raise LookupError(f"Transaction #{txn_id} not found")
@@ -143,9 +137,7 @@ async def apply_user_category(
     return updated_ids
 
 
-async def month_spend(
-    session: AsyncSession, year: int, month: int
-) -> SpendSummary:
+async def month_spend(session: AsyncSession, year: int, month: int) -> SpendSummary:
     start_date = date(year, month, 1)
     next_month_date = date(year + 1, 1, 1) if month == 12 else date(year, month + 1, 1)
 
@@ -187,9 +179,7 @@ async def count_pending(session: AsyncSession) -> int:
     return await session.scalar(stmt) or 0
 
 
-async def pending_review(
-    session: AsyncSession, limit: int = 10
-) -> list[Transaction]:
+async def pending_review(session: AsyncSession, limit: int = 10) -> list[Transaction]:
     stmt = (
         select(Transaction)
         .where(Transaction.status == TxnStatus.NEEDS_REVIEW)
@@ -199,9 +189,7 @@ async def pending_review(
     return list((await session.scalars(stmt)).all())
 
 
-async def recent_transactions(
-    session: AsyncSession, limit: int = 10
-) -> list[Transaction]:
+async def recent_transactions(session: AsyncSession, limit: int = 10) -> list[Transaction]:
     stmt = (
         select(Transaction)
         .order_by(Transaction.occurred_on.desc(), Transaction.id.desc())

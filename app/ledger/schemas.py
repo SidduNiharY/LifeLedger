@@ -74,4 +74,3 @@ class SpendSummary(BaseModel):
     total: Decimal
     by_category: list[tuple[Category | None, Decimal]]
     income: Decimal
-

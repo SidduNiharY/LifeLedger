@@ -18,7 +18,7 @@ def run_with_timeout(cmd: list[str], timeout: float) -> str | None:
         if proc.returncode != 0:
             return None
         return proc.stdout
-    except (subprocess.TimeoutExpired, Exception):
+    except subprocess.TimeoutExpired, Exception:
         return None
 
 

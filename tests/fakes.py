@@ -59,4 +59,3 @@ class FakeGmail:
         if message_id not in self.messages:
             raise KeyError(f"Message {message_id} not found in FakeGmail")
         return self.messages[message_id][1]
-

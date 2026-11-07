@@ -37,9 +37,7 @@ async def process_inbound(
     deps: PipelineDeps,
 ) -> ProcessResult:
     if inbound.status != InboundStatus.RECEIVED:
-        raise ValueError(
-            f"InboundMessage status must be RECEIVED, got {inbound.status}"
-        )
+        raise ValueError(f"InboundMessage status must be RECEIVED, got {inbound.status}")
     if not inbound.text or not inbound.text.strip():
         raise ValueError("InboundMessage text must be set")
 

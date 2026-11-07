@@ -51,9 +51,7 @@ async def fetch_once(
     now: datetime,
 ) -> FetchReport:
     last_success_raw = await get_state(session, "gmail_last_success")
-    last_success = (
-        datetime.fromisoformat(last_success_raw) if last_success_raw else None
-    )
+    last_success = datetime.fromisoformat(last_success_raw) if last_success_raw else None
 
     start = poll_window_start(last_success, now, backfill_days)
     query = build_query(label, start)

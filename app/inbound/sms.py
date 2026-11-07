@@ -3,9 +3,7 @@ import re
 from collections.abc import Sequence
 from datetime import datetime
 
-HEADER_PATTERN = re.compile(
-    r"^(?:[A-Z]{2}-)?(?P<header>[A-Z0-9]{6})(?:-(?P<suffix>[A-Z]))?$"
-)
+HEADER_PATTERN = re.compile(r"^(?:[A-Z]{2}-)?(?P<header>[A-Z0-9]{6})(?:-(?P<suffix>[A-Z]))?$")
 
 
 def is_trusted_sms_sender(sender: str, trusted_headers: Sequence[str]) -> bool:

@@ -68,7 +68,7 @@ async def review_messages(session: AsyncSession) -> list[Outgoing]:
 async def fix_message(session: AsyncSession, arg: str) -> Outgoing:
     try:
         txn_id = int(arg.strip())
-    except (ValueError, AttributeError):
+    except ValueError, AttributeError:
         return Outgoing("Use /fix <transaction number>, e.g. /fix 7")
 
     t = await session.get(Transaction, txn_id)

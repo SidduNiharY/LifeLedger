@@ -33,9 +33,7 @@ async def create_inbound(
             subject=subject,
             error=error,
         )
-        .on_conflict_do_nothing(
-            index_elements=[InboundMessage.source, InboundMessage.external_id]
-        )
+        .on_conflict_do_nothing(index_elements=[InboundMessage.source, InboundMessage.external_id])
         .returning(InboundMessage)
     )
     res = await session.scalars(stmt)

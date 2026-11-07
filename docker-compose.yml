@@ -10,5 +10,93 @@ services:
       - pgdata:/var/lib/postgresql          # postgres:18 keeps data under /var/lib/postgresql/18/
       - ./infra/postgres/init:/docker-entrypoint-initdb.d:ro
     healthcheck: { test: ["CMD-SHELL", "pg_isready -U lifeledger"], interval: 5s, retries: 10 }
+
+  migrate:
+    build: .
+    env_file: .env
+    environment:
+      DATABASE_URL: "postgresql+asyncpg://lifeledger:${POSTGRES_PASSWORD:-lifeledger}@postgres:5432/lifeledger"
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    user: "1000:1000"
+    command: alembic upgrade head
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api:
+    build: .
+    env_file: .env
+    environment:
+      DATABASE_URL: "postgresql+asyncpg://lifeledger:${POSTGRES_PASSWORD:-lifeledger}@postgres:5432/lifeledger"
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    user: "1000:1000"
+    restart: unless-stopped
+    command: uvicorn --factory app.api.main:app_factory --host 0.0.0.0 --port 8000
+    ports: ["8000:8000"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  processor:
+    build: .
+    env_file: .env
+    environment:
+      DATABASE_URL: "postgresql+asyncpg://lifeledger:${POSTGRES_PASSWORD:-lifeledger}@postgres:5432/lifeledger"
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    user: "1000:1000"
+    restart: unless-stopped
+    command: python -m app.pipeline.main
+    volumes:
+      - ./data/inbox:/data/inbox
+      - ./data/outbox:/data/outbox
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  mail-fetcher:
+    build: .
+    env_file: .env
+    environment:
+      DATABASE_URL: "postgresql+asyncpg://lifeledger:${POSTGRES_PASSWORD:-lifeledger}@postgres:5432/lifeledger"
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    user: "1000:1000"
+    restart: unless-stopped
+    command: python -m app.mail.main
+    volumes:
+      - ./secrets:/srv/secrets
+      - ./data/inbox:/data/inbox
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  bot:
+    build: .
+    env_file: .env
+    environment:
+      DATABASE_URL: "postgresql+asyncpg://lifeledger:${POSTGRES_PASSWORD:-lifeledger}@postgres:5432/lifeledger"
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    user: "1000:1000"
+    restart: unless-stopped
+    command: python -m app.bot.main
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  parser:
+    build: { context: ., dockerfile: Dockerfile.parser }
+    network_mode: none
+    read_only: true
+    tmpfs: ["/tmp"]
+    user: "1000:1000"
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+    cpus: "2"
+    mem_limit: 2g
+    pids_limit: 200
+    volumes:
+      - ./data/inbox:/data/inbox:ro
+      - ./data/outbox:/data/outbox
+    restart: unless-stopped
+
 volumes:
   pgdata: {}

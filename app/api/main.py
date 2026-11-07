@@ -28,9 +28,7 @@ def create_app(
         x_lifeledger_token: Annotated[str | None, Header(alias="X-LifeLedger-Token")] = None,
     ) -> SmsResponse:
         expected_token = (
-            settings.sms_webhook_token.get_secret_value()
-            if settings.sms_webhook_token
-            else None
+            settings.sms_webhook_token.get_secret_value() if settings.sms_webhook_token else None
         )
         if (
             not x_lifeledger_token
@@ -62,9 +60,7 @@ def create_app(
             )
             msg_id = msg.id
 
-        resp_status = (
-            "duplicate" if not created else ("received" if trusted else "unverified")
-        )
+        resp_status = "duplicate" if not created else ("received" if trusted else "unverified")
         return SmsResponse(status=resp_status, id=msg_id)
 
     return app

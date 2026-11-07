@@ -86,7 +86,7 @@ class GoogleGmailClient:
         try:
             timestamp_ms = int(internal_date_raw)
             received_at = datetime.fromtimestamp(timestamp_ms / 1000.0, tz=UTC)
-        except (ValueError, TypeError):
+        except ValueError, TypeError:
             received_at = datetime.now(UTC)
 
         size_estimate = int(res.get("sizeEstimate", 0))
