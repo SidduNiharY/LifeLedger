@@ -221,7 +221,9 @@ async def answer_match(
 
     bill = await session.get(Bill, prop.bill_id)
     txn = await session.get(Transaction, prop.transaction_id)
-    if bill is None or bill.status not in (BillStatus.OPEN, BillStatus.EXPIRED):
+    if bill is None or txn is None:
+        return ("That question has expired.", [])
+    if bill.status not in (BillStatus.OPEN, BillStatus.EXPIRED):
         status_str = bill.status.value.lower() if bill is not None else "unknown"
         name = bill.name if bill is not None else "Bill"
         bid = bill.id if bill is not None else prop.bill_id
