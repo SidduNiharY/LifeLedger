@@ -2,11 +2,16 @@ import functools
 import logging
 import re
 from collections.abc import Callable, Coroutine
-from datetime import date
+from datetime import date, datetime
 from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.bills.commands import parse_addbill, parse_addrenewal
+from app.bills.render import render_due_list, render_new_bill
+from app.bills.repo import bills_due_within, cancel_bill, close_bill, create_bill, get_bill
+from app.bills.schemas import BillStatus
+from app.core.timeutil import format_day
 from app.ledger.categories import Category
 from app.ledger.models import Transaction
 from app.ledger.repo import (
@@ -116,6 +121,68 @@ async def answer_category(session: AsyncSession, data: str) -> str:
     n = len(updated_ids) - 1
     extra = f" (also applied to {n} more)" if n > 0 else ""
     return f"✅ {name} → {category.value}{extra}"
+
+
+async def addbill_reply(session: AsyncSession, args: list[str]) -> str:
+    draft = parse_addbill(args)
+    if isinstance(draft, str):
+        return draft
+    bill, created = await create_bill(session, draft)
+    if not created:
+        return f"That bill already exists as #{bill.id}."
+    return render_new_bill(bill)
+
+
+async def addrenewal_reply(session: AsyncSession, args: list[str]) -> str:
+    draft = parse_addrenewal(args)
+    if isinstance(draft, str):
+        return draft
+    bill, created = await create_bill(session, draft)
+    if not created:
+        return f"That bill already exists as #{bill.id}."
+    return render_new_bill(bill)
+
+
+async def due_reply(session: AsyncSession, today: date) -> str:
+    bills = await bills_due_within(session, today=today, days=30)
+    return render_due_list(bills, today)
+
+
+async def paid_reply(session: AsyncSession, arg: str, now: datetime) -> tuple[str, int | None]:
+    try:
+        bill_id = int(arg.strip())
+    except ValueError, AttributeError:
+        return ("Use /paid <bill number>, e.g. /paid 12", None)
+
+    bill = await get_bill(session, bill_id)
+    if bill is None:
+        return (f"Bill #{bill_id} not found.", None)
+
+    if bill.status != BillStatus.OPEN:
+        return (f"#{bill.id} {bill.name} is already {bill.status.value.lower()}.", None)
+
+    nxt = await close_bill(session, bill, transaction_id=None, now=now)
+    text = f"✅ Marked #{bill.id} {bill.name} as paid."
+    if nxt is not None:
+        text += f" Next one: {format_day(nxt.due_on)}."
+    return (text, bill.id)
+
+
+async def cancelbill_reply(session: AsyncSession, arg: str) -> tuple[str, int | None]:
+    try:
+        bill_id = int(arg.strip())
+    except ValueError, AttributeError:
+        return ("Use /cancelbill <bill number>, e.g. /cancelbill 12", None)
+
+    bill = await get_bill(session, bill_id)
+    if bill is None:
+        return (f"Bill #{bill_id} not found.", None)
+
+    if bill.status != BillStatus.OPEN:
+        return (f"#{bill.id} {bill.name} is already {bill.status.value.lower()}.", None)
+
+    await cancel_bill(session, bill)
+    return (f"🗑️ Cancelled #{bill.id} {bill.name}. No more reminders.", bill.id)
 
 
 def owner_only(

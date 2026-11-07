@@ -11,9 +11,14 @@ from telegram.ext import (
 )
 
 from app.bot.actions import (
+    addbill_reply,
+    addrenewal_reply,
     answer_category,
+    cancelbill_reply,
+    due_reply,
     fix_message,
     owner_only,
+    paid_reply,
     recent_reply,
     review_messages,
     spend_reply,
@@ -23,6 +28,7 @@ from app.core.db import make_engine, make_sessionmaker
 from app.core.logging import setup_logging
 from app.core.timeutil import local_date
 from app.notify.telegram import to_markup
+from app.workflows.client import BillWorkflows, TemporalBillWorkflows, connect
 
 logger = logging.getLogger(__name__)
 
@@ -30,14 +36,30 @@ logger = logging.getLogger(__name__)
 def build_application(
     settings: Settings,
     sessionmaker: async_sessionmaker[AsyncSession],
+    workflows: BillWorkflows | None = None,
 ) -> Application:
     owner_id = settings.telegram_owner_chat_id
     if owner_id is None:
         raise ValueError("telegram_owner_chat_id is required")
     guard = owner_only(owner_id)
 
+    workflow_holder: dict[str, BillWorkflows | None] = {"workflows": workflows}
+
+    async def post_init(application: Application) -> None:
+        if workflow_holder["workflows"] is None and settings.temporal_address:
+            try:
+                client = await connect(settings.temporal_address)
+                workflow_holder["workflows"] = TemporalBillWorkflows(client)
+                logger.info("Connected bot to Temporal at %s", settings.temporal_address)
+            except Exception:
+                logger.warning(
+                    "Bot could not connect to Temporal at %s; bill signals disabled",
+                    settings.temporal_address,
+                    exc_info=True,
+                )
+
     token = settings.telegram_bot_token.get_secret_value() if settings.telegram_bot_token else ""
-    app = Application.builder().token(token).build()
+    app = Application.builder().token(token).post_init(post_init).build()
 
     async def handle_spend(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         arg = context.args[0] if context.args else None
@@ -77,6 +99,59 @@ def build_application(
                 reply_markup=to_markup(msg.keyboard),
             )
 
+    async def handle_addbill(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        args = list(context.args or [])
+        async with sessionmaker() as session:
+            async with session.begin():
+                reply = await addbill_reply(session, args)
+        if update.effective_message:
+            await update.effective_message.reply_text(reply)
+
+    async def handle_addrenewal(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        args = list(context.args or [])
+        async with sessionmaker() as session:
+            async with session.begin():
+                reply = await addrenewal_reply(session, args)
+        if update.effective_message:
+            await update.effective_message.reply_text(reply)
+
+    async def handle_due(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        today = local_date(datetime.now(UTC), settings.timezone)
+        async with sessionmaker() as session:
+            async with session.begin():
+                reply = await due_reply(session, today)
+        if update.effective_message:
+            await update.effective_message.reply_text(reply)
+
+    async def handle_paid(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        arg = context.args[0] if context.args else ""
+        now = datetime.now(UTC)
+        async with sessionmaker() as session:
+            async with session.begin():
+                reply, bill_id = await paid_reply(session, arg, now)
+        wf = workflow_holder["workflows"]
+        if bill_id is not None and wf is not None:
+            try:
+                await wf.mark_paid(bill_id)
+            except Exception:
+                logger.exception("Failed to signal mark_paid for bill #%s", bill_id)
+        if update.effective_message:
+            await update.effective_message.reply_text(reply)
+
+    async def handle_cancelbill(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        arg = context.args[0] if context.args else ""
+        async with sessionmaker() as session:
+            async with session.begin():
+                reply, bill_id = await cancelbill_reply(session, arg)
+        wf = workflow_holder["workflows"]
+        if bill_id is not None and wf is not None:
+            try:
+                await wf.cancel(bill_id)
+            except Exception:
+                logger.exception("Failed to signal cancel for bill #%s", bill_id)
+        if update.effective_message:
+            await update.effective_message.reply_text(reply)
+
     async def handle_category_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         query = update.callback_query
         if not query:
@@ -92,6 +167,11 @@ def build_application(
     app.add_handler(CommandHandler("recent", guard(handle_recent)))
     app.add_handler(CommandHandler("review", guard(handle_review)))
     app.add_handler(CommandHandler("fix", guard(handle_fix)))
+    app.add_handler(CommandHandler("addbill", guard(handle_addbill)))
+    app.add_handler(CommandHandler("addrenewal", guard(handle_addrenewal)))
+    app.add_handler(CommandHandler("due", guard(handle_due)))
+    app.add_handler(CommandHandler("paid", guard(handle_paid)))
+    app.add_handler(CommandHandler("cancelbill", guard(handle_cancelbill)))
     app.add_handler(CallbackQueryHandler(guard(handle_category_callback), pattern=r"^cat:"))
 
     return app
