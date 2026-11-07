@@ -64,7 +64,7 @@ class GoogleCalendarClient:
                 events.append(
                     CalendarEvent(
                         id=ev_id,
-                        summary=item.get("summary", ""),
+                        summary=item.get("summary") or "",
                         start=start_date,
                         cancelled=cancelled,
                     )
