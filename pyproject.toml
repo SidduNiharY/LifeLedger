@@ -5,6 +5,7 @@ requires-python = ">=3.14"
 dependencies = [
     "alembic>=1.20.1",
     "asyncpg>=0.32.0",
+    "elevenlabs>=2.77.0",
     "fastapi>=0.162",
     "fastmcp>=4.1.6",
     "google-api-python-client>=2.201.0",
