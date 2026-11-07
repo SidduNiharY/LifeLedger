@@ -1,5 +1,6 @@
 from typing import Any
 
+from app.bills.schemas import ReminderTime
 from app.mail.gmail import GmailMetadata
 from app.notify.telegram import Keyboard, Outgoing
 
@@ -59,3 +60,23 @@ class FakeGmail:
         if message_id not in self.messages:
             raise KeyError(f"Message {message_id} not found in FakeGmail")
         return self.messages[message_id][1]
+
+
+class FakeBillWorkflows:
+    def __init__(self, fail_for: set[int] | None = None) -> None:
+        self.fail_for: set[int] = set(fail_for) if fail_for is not None else set()
+        self.started: list[tuple[int, list[ReminderTime]]] = []
+        self.paid: list[int] = []
+        self.cancelled: list[int] = []
+
+    async def start(self, bill_id: int, reminders: list[ReminderTime]) -> str:
+        if bill_id in self.fail_for:
+            raise RuntimeError(f"Simulated failure starting workflow for bill {bill_id}")
+        self.started.append((bill_id, reminders))
+        return f"bill-{bill_id}"
+
+    async def mark_paid(self, bill_id: int) -> None:
+        self.paid.append(bill_id)
+
+    async def cancel(self, bill_id: int) -> None:
+        self.cancelled.append(bill_id)

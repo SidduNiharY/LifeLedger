@@ -1,13 +1,16 @@
 import asyncio
 import logging
 import time
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from app.bills.service import ensure_bill_workflows
 from app.core.config import Settings, get_settings
 from app.core.db import make_engine, make_sessionmaker
 from app.core.logging import setup_logging
@@ -18,6 +21,7 @@ from app.notify.telegram import Notifier, Outgoing, TelegramNotifier
 from app.pipeline.collect import cleanup_old_files, collect_parser_results
 from app.pipeline.notify import review_notifications
 from app.pipeline.process import PipelineDeps, ProcessResult, process_inbound
+from app.workflows.client import BillWorkflows, TemporalBillWorkflows, connect
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +43,31 @@ async def run_batch(
     outbox_dir: Path,
     now: datetime,
     limit: int = 50,
+    workflows: BillWorkflows | None = None,
+    reminder_days_before: Sequence[int] = (7, 1, 0),
+    reminder_hour_local: int = 9,
+    tz: str = "Asia/Kolkata",
+    reminder_settings: Any = None,
 ) -> BatchReport:
+    if reminder_settings is not None:
+        if isinstance(reminder_settings, dict):
+            reminder_days_before = reminder_settings.get("days_before", reminder_days_before)
+            reminder_hour_local = reminder_settings.get("hour_local", reminder_hour_local)
+            tz = reminder_settings.get("tz", tz)
+        else:
+            if hasattr(reminder_settings, "reminder_days_before"):
+                reminder_days_before = reminder_settings.reminder_days_before
+            elif hasattr(reminder_settings, "days_before"):
+                reminder_days_before = reminder_settings.days_before
+            if hasattr(reminder_settings, "reminder_hour_local"):
+                reminder_hour_local = reminder_settings.reminder_hour_local
+            elif hasattr(reminder_settings, "hour_local"):
+                reminder_hour_local = reminder_settings.hour_local
+            if hasattr(reminder_settings, "timezone"):
+                tz = reminder_settings.timezone
+            elif hasattr(reminder_settings, "tz"):
+                tz = reminder_settings.tz
+
     # 1. Collect in one transaction
     async with sessionmaker() as session:
         async with session.begin():
@@ -104,6 +132,22 @@ async def run_batch(
         except Exception:
             logger.exception("Notifier error sending notification: %s", msg.text)
 
+    # 4. If workflows provided, ensure bill reminder workflows in their own transaction
+    if workflows is not None:
+        try:
+            async with sessionmaker() as session:
+                async with session.begin():
+                    await ensure_bill_workflows(
+                        session,
+                        workflows,
+                        now=now,
+                        days_before=reminder_days_before,
+                        hour_local=reminder_hour_local,
+                        tz=tz,
+                    )
+        except Exception:
+            logger.exception("Error ensuring bill workflows in batch")
+
     return BatchReport(
         collected=collected_count,
         processed=processed_count,
@@ -111,7 +155,10 @@ async def run_batch(
     )
 
 
-async def run_loop(settings: Settings | None = None) -> None:
+async def run_loop(
+    settings: Settings | None = None,
+    workflows: BillWorkflows | None = None,
+) -> None:
     if settings is None:
         settings = get_settings()
 
@@ -137,6 +184,22 @@ async def run_loop(settings: Settings | None = None) -> None:
         chat_id=settings.telegram_owner_chat_id,
     )
 
+    if workflows is None:
+        logger.info("Connecting to Temporal at %s", settings.temporal_address)
+        while True:
+            try:
+                client = await connect(settings.temporal_address)
+                workflows = TemporalBillWorkflows(client)
+                logger.info("Connected to Temporal at %s", settings.temporal_address)
+                break
+            except Exception:
+                logger.warning(
+                    "Could not connect to Temporal at %s; retrying in 10s...",
+                    settings.temporal_address,
+                    exc_info=True,
+                )
+                await asyncio.sleep(10)
+
     last_cleanup = 0.0
     logger.info("Starting processor loop (interval: %ds)", POLL_INTERVAL_SECONDS)
     try:
@@ -149,6 +212,10 @@ async def run_loop(settings: Settings | None = None) -> None:
                     notifier=notifier,
                     outbox_dir=settings.outbox_dir,
                     now=now,
+                    workflows=workflows,
+                    reminder_days_before=settings.reminder_days_before,
+                    reminder_hour_local=settings.reminder_hour_local,
+                    tz=settings.timezone,
                 )
                 if report.collected or report.processed or report.failed:
                     logger.info(
