@@ -9,14 +9,16 @@ from pydantic_ai import Agent
 from app.core.config import Settings
 
 _TRACER_NAME = "lifeledger"
+_langfuse_client: Langfuse | None = None
 
 
 def setup_tracing(settings: Settings) -> bool:
-    if settings.langfuse_public_key is None or settings.langfuse_secret_key is None:
+    global _langfuse_client
+    if not settings.langfuse_public_key or not settings.langfuse_secret_key:
         return False
 
     secret_key = settings.langfuse_secret_key.get_secret_value()
-    Langfuse(
+    _langfuse_client = Langfuse(
         public_key=settings.langfuse_public_key,
         secret_key=secret_key,
         host=settings.langfuse_host,
