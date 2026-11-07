@@ -10,3 +10,5 @@ class ParserSettings(BaseSettings):
     outbox_dir: Path = Path("/data/outbox")
     job_timeout_seconds: float = 120.0
     poll_seconds: float = 5.0
+    pdf_passwords: list[str] = []
+    max_pdf_bytes: int = 10_000_000

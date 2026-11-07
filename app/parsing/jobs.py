@@ -6,6 +6,7 @@ from typing import Annotated
 from pydantic import BaseModel, Field
 
 MAX_TEXT_CHARS = 20_000
+MAX_MARKDOWN_CHARS = 50_000
 
 
 class JobKind(StrEnum):

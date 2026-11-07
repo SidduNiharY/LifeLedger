@@ -84,6 +84,8 @@ services:
 
   parser:
     build: { context: ., dockerfile: Dockerfile.parser }
+    environment:
+      PDF_PASSWORDS: "${PDF_PASSWORDS:-[]}"
     network_mode: none
     read_only: true
     tmpfs: ["/tmp"]
