@@ -1,0 +1,9 @@
+FROM python:3.14-slim
+COPY --from=ghcr.io/astral-sh/uv:0.13 /uv /usr/local/bin/uv
+ENV PYTHONDONTWRITEBYTECODE=1 UV_LINK_MODE=copy PATH="/srv/.venv/bin:$PATH"
+WORKDIR /srv
+COPY pyproject.toml uv.lock ./
+RUN uv sync --frozen --no-dev --extra parser --no-install-project
+COPY app ./app
+USER 1000:1000
+CMD ["python", "-m", "app.sandbox.main"]
