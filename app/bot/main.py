@@ -27,6 +27,7 @@ from app.bot.actions import (
     recent_reply,
     review_messages,
     spend_reply,
+    subs_reply,
 )
 from app.core.config import Settings, get_settings
 from app.core.db import make_engine, make_sessionmaker
@@ -90,6 +91,14 @@ def build_application(
         async with sessionmaker() as session:
             async with session.begin():
                 reply = await recent_reply(session)
+        if update.effective_message:
+            await update.effective_message.reply_text(reply)
+
+    async def handle_subs(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        today = local_date(datetime.now(UTC), settings.timezone)
+        async with sessionmaker() as session:
+            async with session.begin():
+                reply = await subs_reply(session, today)
         if update.effective_message:
             await update.effective_message.reply_text(reply)
 
@@ -239,6 +248,7 @@ def build_application(
     app.add_handler(CommandHandler("paid", guard(handle_paid)))
     app.add_handler(CommandHandler("cancelbill", guard(handle_cancelbill)))
     app.add_handler(CommandHandler("keywords", guard(handle_keywords)))
+    app.add_handler(CommandHandler("subs", guard(handle_subs)))
     app.add_handler(CallbackQueryHandler(guard(handle_category_callback), pattern=r"^cat:"))
     app.add_handler(CallbackQueryHandler(guard(handle_match_callback), pattern=r"^match:"))
     app.add_handler(MessageHandler(filters.Document.ALL, guard(handle_document)))

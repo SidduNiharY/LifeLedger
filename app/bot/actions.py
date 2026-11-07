@@ -2,10 +2,11 @@ import functools
 import logging
 import re
 from collections.abc import Callable, Coroutine
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.bills.commands import parse_addbill, parse_addrenewal
@@ -15,6 +16,7 @@ from app.bills.schemas import BillStatus
 from app.core.timeutil import format_day
 from app.inbound.models import InboundSource, InboundStatus
 from app.inbound.repo import create_inbound
+from app.insights.subscriptions import detect_subscriptions, render_subscriptions
 from app.ledger.categories import Category
 from app.ledger.models import Transaction
 from app.ledger.repo import (
@@ -24,7 +26,7 @@ from app.ledger.repo import (
     pending_review,
     recent_transactions,
 )
-from app.ledger.schemas import CategorySource
+from app.ledger.schemas import CategorySource, Direction
 from app.notify.render import (
     category_keyboard,
     render_category_question,
@@ -57,6 +59,21 @@ async def spend_reply(session: AsyncSession, arg: str | None, today: date) -> st
 async def recent_reply(session: AsyncSession) -> str:
     txns = await recent_transactions(session)
     return render_recent(txns)
+
+
+async def subs_reply(session: AsyncSession, today: date) -> str:
+    since = today - timedelta(days=120)
+    stmt = (
+        select(Transaction)
+        .where(
+            Transaction.direction == Direction.DEBIT,
+            Transaction.occurred_on >= since,
+        )
+        .order_by(Transaction.occurred_on.asc())
+    )
+    txns = (await session.scalars(stmt)).all()
+    subs = detect_subscriptions(txns, today)
+    return render_subscriptions(subs)
 
 
 async def review_messages(session: AsyncSession) -> list[Outgoing]:
