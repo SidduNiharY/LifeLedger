@@ -56,3 +56,5 @@ pythonpath = ["."]
 testpaths = ["tests"]
 addopts = "--import-mode=importlib --strict-markers -m 'not slow'"
 markers = ["slow: needs heavy models such as Docling; run with -m slow"]
+filterwarnings = ["ignore::DeprecationWarning:deepeval.*"]
+
