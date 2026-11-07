@@ -28,13 +28,20 @@ class FakeRunner:
 class FakeNotifier:
     def __init__(self) -> None:
         self.sent: list[Outgoing] = []
+        self.audio: list[tuple[bytes, str]] = []
 
     async def send(self, text: str, keyboard: Keyboard | None = None) -> None:
         self.sent.append(Outgoing(text=text, keyboard=keyboard))
 
+    async def send_audio(self, audio: bytes, title: str) -> None:
+        self.audio.append((audio, title))
+
 
 class FailingNotifier:
     async def send(self, text: str, keyboard: Keyboard | None = None) -> None:
+        raise RuntimeError("telegram down")
+
+    async def send_audio(self, audio: bytes, title: str) -> None:
         raise RuntimeError("telegram down")
 
 

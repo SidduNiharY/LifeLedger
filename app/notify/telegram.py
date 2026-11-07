@@ -15,6 +15,7 @@ class Outgoing:
 
 class Notifier(Protocol):
     async def send(self, text: str, keyboard: Keyboard | None = None) -> None: ...
+    async def send_audio(self, audio: bytes, title: str) -> None: ...
 
 
 def to_markup(keyboard: Keyboard | None) -> InlineKeyboardMarkup | None:
@@ -38,4 +39,11 @@ class TelegramNotifier:
             chat_id=self.chat_id,
             text=text,
             reply_markup=to_markup(keyboard),
+        )
+
+    async def send_audio(self, audio: bytes, title: str) -> None:
+        await self.bot.send_audio(
+            chat_id=self.chat_id,
+            audio=audio,
+            title=title,
         )

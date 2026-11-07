@@ -1,8 +1,10 @@
 import asyncio
 import logging
+from functools import partial
 
 from temporalio.worker import Worker
 
+from app.briefing.voice import synthesize_speech
 from app.core.config import Settings, get_settings
 from app.core.db import make_engine, make_sessionmaker
 from app.core.logging import setup_logging
@@ -10,6 +12,11 @@ from app.notify.telegram import TelegramNotifier
 from app.observability.tracing import setup_tracing
 from app.workflows.activities import BillActivities
 from app.workflows.bill_reminder import BillReminderWorkflow
+from app.workflows.briefing import (
+    BriefingActivities,
+    MorningBriefingWorkflow,
+    ensure_briefing_schedule,
+)
 from app.workflows.client import TASK_QUEUE, connect
 
 logger = logging.getLogger(__name__)
@@ -26,12 +33,37 @@ async def run_worker(settings: Settings) -> None:
         notifier = TelegramNotifier(token=token, chat_id=chat_id)
         acts = BillActivities(sessionmaker=sessionmaker, notifier=notifier)
 
+        synthesize = None
+        if (
+            settings.briefing_voice
+            and settings.elevenlabs_api_key is not None
+            and settings.elevenlabs_voice_id is not None
+        ):
+            synthesize = partial(
+                synthesize_speech,
+                api_key=settings.elevenlabs_api_key.get_secret_value(),
+                voice_id=settings.elevenlabs_voice_id,
+            )
+
+        briefing_acts = BriefingActivities(
+            sessionmaker=sessionmaker,
+            notifier=notifier,
+            tz=settings.timezone,
+            synthesize=synthesize,
+        )
+
         client = await connect(settings.temporal_address)
+        await ensure_briefing_schedule(client, settings.briefing_hour_local, settings.timezone)
+
         worker = Worker(
             client,
             task_queue=TASK_QUEUE,
-            workflows=[BillReminderWorkflow],
-            activities=[acts.send_bill_reminder, acts.expire_bill],
+            workflows=[BillReminderWorkflow, MorningBriefingWorkflow],
+            activities=[
+                acts.send_bill_reminder,
+                acts.expire_bill,
+                briefing_acts.send_morning_briefing,
+            ],
         )
         logger.info(
             "Starting Temporal worker on task queue %r (server: %s)...",

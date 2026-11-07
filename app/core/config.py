@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore", env_ignore_empty=True)
 
     database_url: str = Field(repr=False)
+    mcp_database_url: str | None = None
 
     telegram_bot_token: SecretStr | None = None
     telegram_owner_chat_id: int | None = None
@@ -58,6 +59,10 @@ class Settings(BaseSettings):
     temporal_address: str = "temporal:7233"
     reminder_days_before: list[int] = [7, 1, 0]
     reminder_hour_local: int = 9
+    briefing_hour_local: int = 8
+    briefing_voice: bool = False
+    elevenlabs_api_key: SecretStr | None = None
+    elevenlabs_voice_id: str | None = None
 
     @field_validator("timezone")
     @classmethod
