@@ -36,6 +36,10 @@ class Settings(BaseSettings):
     cloud_model: str = "claude-haiku-5-5"
     category_confidence_threshold: float = 0.8
 
+    langfuse_public_key: str | None = None
+    langfuse_secret_key: SecretStr | None = None
+    langfuse_host: str = "http://host.docker.internal:3000"
+
     timezone: str = "Asia/Kolkata"
     inbox_dir: Path = Path("/data/inbox")
     outbox_dir: Path = Path("/data/outbox")

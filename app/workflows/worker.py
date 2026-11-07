@@ -7,6 +7,7 @@ from app.core.config import Settings, get_settings
 from app.core.db import make_engine, make_sessionmaker
 from app.core.logging import setup_logging
 from app.notify.telegram import TelegramNotifier
+from app.observability.tracing import setup_tracing
 from app.workflows.activities import BillActivities
 from app.workflows.bill_reminder import BillReminderWorkflow
 from app.workflows.client import TASK_QUEUE, connect
@@ -46,6 +47,7 @@ def main() -> None:
     settings = get_settings()
     settings.require("telegram_bot_token", "telegram_owner_chat_id")
     setup_logging()
+    setup_tracing(settings)
     asyncio.run(run_worker(settings))
 
 

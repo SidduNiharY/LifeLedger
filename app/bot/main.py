@@ -34,6 +34,8 @@ from app.core.logging import setup_logging
 from app.core.timeutil import local_date
 from app.matching.service import answer_match
 from app.notify.telegram import to_markup
+from app.observability.feedback import FeedbackRecorder, LangfuseFeedback, NoopFeedback
+from app.observability.tracing import setup_tracing
 from app.workflows.client import BillWorkflows, TemporalBillWorkflows, connect
 
 logger = logging.getLogger(__name__)
@@ -43,11 +45,19 @@ def build_application(
     settings: Settings,
     sessionmaker: async_sessionmaker[AsyncSession],
     workflows: BillWorkflows | None = None,
+    feedback: FeedbackRecorder | None = None,
 ) -> Application:
     owner_id = settings.telegram_owner_chat_id
     if owner_id is None:
         raise ValueError("telegram_owner_chat_id is required")
     guard = owner_only(owner_id)
+
+    if feedback is None:
+        feedback = (
+            LangfuseFeedback(settings)
+            if (settings.langfuse_public_key and settings.langfuse_secret_key)
+            else NoopFeedback()
+        )
 
     workflow_holder: dict[str, BillWorkflows | None] = {"workflows": workflows}
 
@@ -174,7 +184,7 @@ def build_application(
         data = query.data or ""
         async with sessionmaker() as session:
             async with session.begin():
-                answer_text = await answer_category(session, data)
+                answer_text = await answer_category(session, data, feedback=feedback)
         await query.edit_message_text(text=answer_text)
 
     async def handle_match_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -240,6 +250,7 @@ def main() -> None:
     settings = get_settings()
     settings.require("telegram_bot_token", "telegram_owner_chat_id", "database_url")
     setup_logging()
+    setup_tracing(settings)
 
     engine = make_engine(settings.database_url)
     sessionmaker = make_sessionmaker(engine)

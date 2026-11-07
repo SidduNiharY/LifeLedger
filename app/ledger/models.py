@@ -41,6 +41,7 @@ class Transaction(Base):
     category_source: Mapped[CategorySource | None] = mapped_column(enum_col(CategorySource))
     category_confidence: Mapped[float | None] = mapped_column(Float)
     parse_method: Mapped[ParseMethod] = mapped_column(enum_col(ParseMethod))
+    trace_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 

@@ -97,3 +97,20 @@ def test_unknown_timezone_fails_at_startup(monkeypatch):
     monkeypatch.setenv("TIMEZONE", "Asia/Kolkatta")
     with pytest.raises(ValueError, match="timezone"):
         Settings(_env_file=None)
+
+
+def test_langfuse_settings_default_and_env(monkeypatch):
+    s = Settings(database_url="postgresql+asyncpg://u:p@db:5432/x", _env_file=None)
+    assert s.langfuse_public_key is None
+    assert s.langfuse_secret_key is None
+    assert s.langfuse_host == "http://host.docker.internal:3000"
+
+    monkeypatch.setenv("DATABASE_URL", "postgresql+asyncpg://u:p@db:5432/x")
+    monkeypatch.setenv("LANGFUSE_PUBLIC_KEY", "pk-test")
+    monkeypatch.setenv("LANGFUSE_SECRET_KEY", "sk-test")
+    monkeypatch.setenv("LANGFUSE_HOST", "http://localhost:3000")
+    s2 = Settings(_env_file=None)
+    assert s2.langfuse_public_key == "pk-test"
+    assert s2.langfuse_secret_key is not None
+    assert s2.langfuse_secret_key.get_secret_value() == "sk-test"
+    assert s2.langfuse_host == "http://localhost:3000"

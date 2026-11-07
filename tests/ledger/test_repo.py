@@ -100,3 +100,19 @@ async def test_apply_user_category_teaches_merchant(session):
     assert await repo.apply_user_category(session, a.id, Category.FOOD) == [a.id, b.id]
     assert await repo.lookup_merchant_category(session, "SWIGGY") is Category.FOOD
     assert await repo.count_pending(session) == 1
+
+
+async def test_save_transaction_persists_trace_id(session):
+    alert = parse_alert_text(S1)
+    decision = DONE.model_copy(update={"trace_id": "0af7651916cd43dd8448eb211c80319c"})
+    t = await repo.save_transaction(
+        session,
+        alert=alert,
+        source=InboundSource.SMS,
+        received_at=T0,
+        merchant_key=merchant_key(alert.counterparty),
+        decision=decision,
+        parse_method=ParseMethod.RULE,
+        tz=TZ,
+    )
+    assert t.trace_id == "0af7651916cd43dd8448eb211c80319c"

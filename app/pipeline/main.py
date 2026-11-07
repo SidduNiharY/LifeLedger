@@ -20,6 +20,7 @@ from app.ledger.schemas import TxnStatus
 from app.llm.agents import build_ladders
 from app.matching.service import match_new_bills
 from app.notify.telegram import Notifier, Outgoing, TelegramNotifier
+from app.observability.tracing import setup_tracing
 from app.pipeline.collect import cleanup_old_files, collect_parser_results
 from app.pipeline.notify import review_notifications
 from app.pipeline.process import PipelineDeps, ProcessResult, process_inbound
@@ -285,6 +286,7 @@ def main() -> None:
     settings = get_settings()
     settings.require("telegram_bot_token", "telegram_owner_chat_id")
     setup_logging()
+    setup_tracing(settings)
     asyncio.run(run_loop(settings))
 
 

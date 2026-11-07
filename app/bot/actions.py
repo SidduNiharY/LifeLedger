@@ -24,6 +24,7 @@ from app.ledger.repo import (
     pending_review,
     recent_transactions,
 )
+from app.ledger.schemas import CategorySource
 from app.notify.render import (
     category_keyboard,
     render_category_question,
@@ -31,6 +32,7 @@ from app.notify.render import (
     render_spend,
 )
 from app.notify.telegram import Outgoing
+from app.observability.feedback import FeedbackRecorder, NoopFeedback
 from app.parsing.jobs import JobKind, ParserJob, write_job
 
 logger = logging.getLogger(__name__)
@@ -106,7 +108,12 @@ def parse_category_callback(data: str) -> tuple[int, Category]:
     return txn_id, category
 
 
-async def answer_category(session: AsyncSession, data: str) -> str:
+_NOOP_FEEDBACK = NoopFeedback()
+
+
+async def answer_category(
+    session: AsyncSession, data: str, feedback: FeedbackRecorder = _NOOP_FEEDBACK
+) -> str:
     try:
         txn_id, category = parse_category_callback(data)
     except ValueError:
@@ -115,6 +122,15 @@ async def answer_category(session: AsyncSession, data: str) -> str:
     t = await session.get(Transaction, txn_id)
     if t is None:
         return "That button has expired."
+
+    prior = (
+        t.category
+        if t.category_source in {CategorySource.LOCAL_LLM, CategorySource.CLOUD_LLM}
+        else t.suggested_category
+    )
+    if t.trace_id and prior is not None:
+        score = 1.0 if category == prior else 0.0
+        feedback.record(t.trace_id, "category_correct", score)
 
     name = t.counterparty or t.merchant_key or f"#{t.id}"
     try:
@@ -155,7 +171,7 @@ async def due_reply(session: AsyncSession, today: date) -> str:
 async def paid_reply(session: AsyncSession, arg: str, now: datetime) -> tuple[str, int | None]:
     try:
         bill_id = int(arg.strip())
-    except (ValueError, AttributeError):
+    except ValueError, AttributeError:
         return ("Use /paid <bill number>, e.g. /paid 12", None)
 
     bill = await get_bill(session, bill_id)
@@ -175,7 +191,7 @@ async def paid_reply(session: AsyncSession, arg: str, now: datetime) -> tuple[st
 async def cancelbill_reply(session: AsyncSession, arg: str) -> tuple[str, int | None]:
     try:
         bill_id = int(arg.strip())
-    except (ValueError, AttributeError):
+    except ValueError, AttributeError:
         return ("Use /cancelbill <bill number>, e.g. /cancelbill 12", None)
 
     bill = await get_bill(session, bill_id)

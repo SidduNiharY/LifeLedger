@@ -85,6 +85,7 @@ async def save_transaction(
         category_source=decision.source,
         category_confidence=decision.confidence,
         parse_method=parse_method,
+        trace_id=decision.trace_id,
     )
     session.add(t)
     await session.flush()

@@ -66,6 +66,7 @@ class CategoryDecision(BaseModel):
     suggested: Category
     source: CategorySource | None = None
     confidence: float | None = None
+    trace_id: str | None = None
 
 
 class SpendSummary(BaseModel):

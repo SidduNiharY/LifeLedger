@@ -13,6 +13,7 @@ from app.ledger.schemas import (
 )
 from app.llm.ladder import ModelLadder, Tier
 from app.llm.prompts import categorise_prompt
+from app.observability.tracing import current_trace_id, traced_span
 
 
 async def categorise(
@@ -36,8 +37,10 @@ async def categorise(
                 confidence=1.0,
             )
 
-    prompt = categorise_prompt(direction, amount, counterparty, merchant_key)
-    res = await ladder.run(prompt, accept=lambda g: g.confidence >= threshold)
+    with traced_span("categorise_transaction", merchant_key=merchant_key or ""):
+        trace_id = current_trace_id()
+        prompt = categorise_prompt(direction, amount, counterparty, merchant_key)
+        res = await ladder.run(prompt, accept=lambda g: g.confidence >= threshold)
 
     if res.accepted:
         source = CategorySource.LOCAL_LLM if res.tier == Tier.LOCAL else CategorySource.CLOUD_LLM
@@ -47,6 +50,7 @@ async def categorise(
             suggested=res.accepted.category,
             source=source,
             confidence=res.accepted.confidence,
+            trace_id=trace_id,
         )
 
     if res.candidates:
@@ -57,6 +61,7 @@ async def categorise(
             suggested=best_guess.category,
             source=None,
             confidence=best_guess.confidence,
+            trace_id=trace_id,
         )
 
     return CategoryDecision(
@@ -65,4 +70,5 @@ async def categorise(
         suggested=Category.OTHER,
         source=None,
         confidence=None,
+        trace_id=trace_id,
     )

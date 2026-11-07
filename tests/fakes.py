@@ -95,3 +95,11 @@ class FakeCalendar:
     ) -> list[CalendarEvent]:
         self.calls.append((calendar_id, time_min, time_max))
         return list(self.events)
+
+
+class FakeFeedback:
+    def __init__(self) -> None:
+        self.records: list[tuple[str, str, float]] = []
+
+    def record(self, trace_id: str, name: str, value: float) -> None:
+        self.records.append((trace_id, name, value))
