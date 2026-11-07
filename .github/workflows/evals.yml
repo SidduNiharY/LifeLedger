@@ -1,0 +1,23 @@
+name: evals
+on:
+  workflow_dispatch:
+  pull_request:
+    paths: ["app/llm/**", "app/ledger/categorise.py", "evals/**"]
+permissions: { contents: read }
+jobs:
+  categoriser:
+    runs-on: ubuntu-latest
+    env:
+      EVAL_TIER: cloud
+      ALLOW_CLOUD_LLM: "true"
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      DATABASE_URL: postgresql+asyncpg://unused@localhost/unused
+      DEEPEVAL_TELEMETRY_OPT_OUT: "YES"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --frozen
+      - run: uv run pytest evals -q
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: eval-report, path: evals/report.json }

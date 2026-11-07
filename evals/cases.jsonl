@@ -1,0 +1,40 @@
+{"id":"s-01","direction":"debit","amount":"450.00","counterparty":"swiggy@icici","expected":"Food"}
+{"id":"s-02","direction":"debit","amount":"312.00","counterparty":"UBER INDIA","expected":"Travel"}
+{"id":"s-03","direction":"debit","amount":"15000.00","counterparty":"house rent landlord@okicici","expected":"Rent"}
+{"id":"s-04","direction":"debit","amount":"1250.50","counterparty":"BESCOM","expected":"Bills"}
+{"id":"s-05","direction":"debit","amount":"2999.00","counterparty":"AMAZON PAY INDIA","expected":"Shopping"}
+{"id":"s-06","direction":"debit","amount":"8450.00","counterparty":"HDFC LOAN EMI","expected":"EMI"}
+{"id":"s-07","direction":"debit","amount":"649.00","counterparty":"NETFLIX","expected":"Subscriptions"}
+{"id":"s-08","direction":"debit","amount":"10000.00","counterparty":"HDFC CREDIT CARD PAYMENT","expected":"Transfer"}
+{"id":"s-09","direction":"credit","amount":"50000.00","counterparty":"ACME CORP PVT LTD SALARY","expected":"Income"}
+{"id":"s-10","direction":"debit","amount":"500.00","counterparty":"TEMPLE DONATION","expected":"Other"}
+{"id":"s-11","direction":"debit","amount":"750.00","counterparty":"ZOMATO RESTAURANT","expected":"Food"}
+{"id":"s-12","direction":"debit","amount":"1200.00","counterparty":"BIGBASKET GROCERIES","expected":"Food"}
+{"id":"s-13","direction":"debit","amount":"250.00","counterparty":"STARBUCKS COFFEE","expected":"Food"}
+{"id":"s-14","direction":"debit","amount":"180.00","counterparty":"OLA CABS","expected":"Travel"}
+{"id":"s-15","direction":"debit","amount":"2450.00","counterparty":"IRCTC TRAIN TICKET","expected":"Travel"}
+{"id":"s-16","direction":"debit","amount":"1500.00","counterparty":"SHELL FUEL PETROL PUMP","expected":"Travel"}
+{"id":"s-17","direction":"debit","amount":"18500.00","counterparty":"PRESTIGE APARTMENT MAINTENANCE","expected":"Rent"}
+{"id":"s-18","direction":"debit","amount":"22000.00","counterparty":"MONTHLY FLAT RENT TO OWNER","expected":"Rent"}
+{"id":"s-19","direction":"debit","amount":"3500.00","counterparty":"SOCIETY MAINTENANCE CHARGES","expected":"Rent"}
+{"id":"s-20","direction":"debit","amount":"999.00","counterparty":"AIRTEL BROADBAND FIBER BILL","expected":"Bills"}
+{"id":"s-21","direction":"debit","amount":"850.00","counterparty":"INDANE GAS CYLINDER REFILL","expected":"Bills"}
+{"id":"s-22","direction":"debit","amount":"430.00","counterparty":"BWSSB WATER SUPPLY UTILITY","expected":"Bills"}
+{"id":"s-23","direction":"debit","amount":"1499.00","counterparty":"FLIPKART INTERNET PVT LTD","expected":"Shopping"}
+{"id":"s-24","direction":"debit","amount":"3499.00","counterparty":"ZARA INDIA RETAIL","expected":"Shopping"}
+{"id":"s-25","direction":"debit","amount":"15999.00","counterparty":"RELIANCE DIGITAL ELECTRONICS","expected":"Shopping"}
+{"id":"s-26","direction":"debit","amount":"12500.00","counterparty":"BAJAJ AUTO FINANCE EMI","expected":"EMI"}
+{"id":"s-27","direction":"debit","amount":"35000.00","counterparty":"ICICI BANK HOME LOAN EMI","expected":"EMI"}
+{"id":"s-28","direction":"debit","amount":"5400.00","counterparty":"TATA CAPITAL PERSONAL LOAN EMI","expected":"EMI"}
+{"id":"s-29","direction":"debit","amount":"119.00","counterparty":"SPOTIFY INDIA SUBSCRIPTION","expected":"Subscriptions"}
+{"id":"s-30","direction":"debit","amount":"189.00","counterparty":"YOUTUBE PREMIUM FAMILY","expected":"Subscriptions"}
+{"id":"s-31","direction":"debit","amount":"1999.00","counterparty":"CHATGPT PLUS OPENAI","expected":"Subscriptions"}
+{"id":"s-32","direction":"debit","amount":"25000.00","counterparty":"ZERODHA BROKING LTD FUNDS ADD","expected":"Transfer"}
+{"id":"s-33","direction":"debit","amount":"10000.00","counterparty":"GROWW MUTUAL FUND SIP","expected":"Transfer"}
+{"id":"s-34","direction":"debit","amount":"5000.00","counterparty":"SELF TRANSFER TO SBI SAVINGS","expected":"Transfer"}
+{"id":"s-35","direction":"credit","amount":"95000.00","counterparty":"INFOSYS LIMITED MONTHLY SALARY","expected":"Income"}
+{"id":"s-36","direction":"credit","amount":"82000.00","counterparty":"TCS PAYROLL SALARY CREDIT","expected":"Income"}
+{"id":"s-37","direction":"credit","amount":"1450.00","counterparty":"DIVIDEND CREDITED HDFC BANK","expected":"Income"}
+{"id":"s-38","direction":"debit","amount":"1500.00","counterparty":"REGIONAL PASSPORT OFFICE SEVA FEE","expected":"Other"}
+{"id":"s-39","direction":"debit","amount":"2000.00","counterparty":"ATM CASH WITHDRAWAL","expected":"Other"}
+{"id":"s-40","direction":"debit","amount":"500.00","counterparty":"TRAFFIC POLICE E-CHALLAN FINE","expected":"Other"}
