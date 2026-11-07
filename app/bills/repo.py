@@ -136,8 +136,8 @@ async def close_bill(
     transaction_id: int | None,
     now: datetime,
 ) -> Bill | None:
-    """Close an OPEN bill as PAID and roll it forward if recurring."""
-    if bill.status != BillStatus.OPEN:
+    """Close an OPEN or EXPIRED bill as PAID and roll it forward if recurring."""
+    if bill.status not in (BillStatus.OPEN, BillStatus.EXPIRED):
         raise BillNotOpen(f"Bill #{bill.id} is not open (status={bill.status})")
     bill.status = BillStatus.PAID
     bill.paid_transaction_id = transaction_id

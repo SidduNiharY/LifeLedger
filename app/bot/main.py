@@ -19,6 +19,7 @@ from app.bot.actions import (
     cancelbill_reply,
     due_reply,
     fix_message,
+    keywords_reply,
     owner_only,
     paid_reply,
     pdf_upload_problem,
@@ -31,6 +32,7 @@ from app.core.config import Settings, get_settings
 from app.core.db import make_engine, make_sessionmaker
 from app.core.logging import setup_logging
 from app.core.timeutil import local_date
+from app.matching.service import answer_match
 from app.notify.telegram import to_markup
 from app.workflows.client import BillWorkflows, TemporalBillWorkflows, connect
 
@@ -156,6 +158,14 @@ def build_application(
         if update.effective_message:
             await update.effective_message.reply_text(reply)
 
+    async def handle_keywords(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        args = list(context.args or [])
+        async with sessionmaker() as session:
+            async with session.begin():
+                reply = await keywords_reply(session, args)
+        if update.effective_message:
+            await update.effective_message.reply_text(reply)
+
     async def handle_category_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         query = update.callback_query
         if not query:
@@ -166,6 +176,25 @@ def build_application(
             async with session.begin():
                 answer_text = await answer_category(session, data)
         await query.edit_message_text(text=answer_text)
+
+    async def handle_match_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        query = update.callback_query
+        if not query:
+            return
+        await query.answer()
+        data = query.data or ""
+        now = datetime.now(UTC)
+        async with sessionmaker() as session:
+            async with session.begin():
+                reply, paid_ids = await answer_match(session, data, now=now)
+        wf = workflow_holder["workflows"]
+        if paid_ids and wf is not None:
+            for pid in paid_ids:
+                try:
+                    await wf.mark_paid(pid)
+                except Exception:
+                    logger.exception("Failed to signal mark_paid for bill #%s", pid)
+        await query.edit_message_text(text=reply)
 
     async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         if not update.effective_message or not update.effective_message.document:
@@ -199,7 +228,9 @@ def build_application(
     app.add_handler(CommandHandler("due", guard(handle_due)))
     app.add_handler(CommandHandler("paid", guard(handle_paid)))
     app.add_handler(CommandHandler("cancelbill", guard(handle_cancelbill)))
+    app.add_handler(CommandHandler("keywords", guard(handle_keywords)))
     app.add_handler(CallbackQueryHandler(guard(handle_category_callback), pattern=r"^cat:"))
+    app.add_handler(CallbackQueryHandler(guard(handle_match_callback), pattern=r"^match:"))
     app.add_handler(MessageHandler(filters.Document.ALL, guard(handle_document)))
 
     return app

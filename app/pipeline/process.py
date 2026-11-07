@@ -8,8 +8,9 @@ from app.ledger.categorise import categorise
 from app.ledger.merchants import merchant_key
 from app.ledger.models import Transaction
 from app.ledger.repo import find_duplicate, save_transaction
-from app.ledger.schemas import AlertExtraction, CategoryGuess, ParseMethod
+from app.ledger.schemas import AlertExtraction, CategoryGuess, Direction, ParseMethod
 from app.llm.ladder import ModelLadder
+from app.matching.service import match_transaction
 from app.notify.telegram import Outgoing
 from app.parsing.llm_fallback import extract_alert_with_llm
 from app.parsing.noise import noise_reason
@@ -116,10 +117,19 @@ async def process_inbound(
     )
     inbound.status = InboundStatus.PROCESSED
     inbound.transaction_id = txn.id
+
+    outgoing: list[Outgoing] = []
+    paid_bill_ids: list[int] = []
+
+    if txn.direction == Direction.DEBIT:
+        outcome = await match_transaction(session, txn, now=inbound.received_at)
+        outgoing.extend(outcome.outgoing)
+        paid_bill_ids.extend(outcome.paid_bill_ids)
+
     await session.flush()
     return ProcessResult(
         status=InboundStatus.PROCESSED,
         transaction=txn,
-        outgoing=[],
-        paid_bill_ids=[],
+        outgoing=outgoing,
+        paid_bill_ids=paid_bill_ids,
     )

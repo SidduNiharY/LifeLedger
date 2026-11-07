@@ -18,6 +18,7 @@ from app.core.logging import setup_logging
 from app.inbound.models import InboundMessage, InboundSource, InboundStatus
 from app.ledger.schemas import TxnStatus
 from app.llm.agents import build_ladders
+from app.matching.service import match_new_bills
 from app.notify.telegram import Notifier, Outgoing, TelegramNotifier
 from app.pipeline.collect import cleanup_old_files, collect_parser_results
 from app.pipeline.notify import review_notifications
@@ -131,8 +132,20 @@ async def run_batch(
 
     # 3. After the commits, send every ProcessResult.outgoing plus
     # review_notifications(new NEEDS_REVIEW txns)
+    paid_bill_ids: list[int] = []
     for r in results:
         all_outgoing.extend(r.outgoing)
+        paid_bill_ids.extend(r.paid_bill_ids)
+
+    # Match new bills against earlier debits in its own transaction
+    try:
+        async with sessionmaker() as session:
+            async with session.begin():
+                match_res = await match_new_bills(session, now=now)
+                all_outgoing.extend(match_res.outgoing)
+                paid_bill_ids.extend(match_res.paid_bill_ids)
+    except Exception:
+        logger.exception("Error matching new bills in batch")
 
     needs_review_txns = [
         r.transaction
@@ -162,6 +175,12 @@ async def run_batch(
                     )
         except Exception:
             logger.exception("Error ensuring bill workflows in batch")
+
+        for bill_id in paid_bill_ids:
+            try:
+                await workflows.mark_paid(bill_id)
+            except Exception:
+                logger.exception("Failed to signal mark_paid for bill #%s", bill_id)
 
     return BatchReport(
         collected=collected_count,

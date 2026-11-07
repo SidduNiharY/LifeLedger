@@ -155,7 +155,7 @@ async def due_reply(session: AsyncSession, today: date) -> str:
 async def paid_reply(session: AsyncSession, arg: str, now: datetime) -> tuple[str, int | None]:
     try:
         bill_id = int(arg.strip())
-    except (ValueError, AttributeError):
+    except ValueError, AttributeError:
         return ("Use /paid <bill number>, e.g. /paid 12", None)
 
     bill = await get_bill(session, bill_id)
@@ -175,7 +175,7 @@ async def paid_reply(session: AsyncSession, arg: str, now: datetime) -> tuple[st
 async def cancelbill_reply(session: AsyncSession, arg: str) -> tuple[str, int | None]:
     try:
         bill_id = int(arg.strip())
-    except (ValueError, AttributeError):
+    except ValueError, AttributeError:
         return ("Use /cancelbill <bill number>, e.g. /cancelbill 12", None)
 
     bill = await get_bill(session, bill_id)
@@ -195,6 +195,38 @@ def pdf_upload_problem(mime_type: str | None, size: int | None, max_bytes: int) 
     if size is not None and size > max_bytes:
         return "That PDF is too large (max 10 MB)."
     return None
+
+
+KEYWORDS_USAGE = (
+    "Usage: /keywords <bill number> <word>[, <word>…]\nExample: /keywords 12 BESCOM, ELECTRICITY"
+)
+
+
+async def keywords_reply(session: AsyncSession, args: list[str]) -> str:
+    if not args or not args[0].isdigit():
+        return KEYWORDS_USAGE
+
+    raw = " ".join(args[1:])
+    words = [w.strip().upper() for w in re.split(r"[,\s]+", raw) if w.strip()]
+    seen: set[str] = set()
+    unique_words: list[str] = []
+    for w in words:
+        if w not in seen:
+            seen.add(w)
+            unique_words.append(w)
+    words = unique_words
+
+    if not words:
+        return KEYWORDS_USAGE
+
+    bill_id = int(args[0])
+    bill = await get_bill(session, bill_id)
+    if bill is None:
+        return f"Bill #{bill_id} not found."
+
+    bill.payee_keywords = words
+    await session.flush()
+    return f"🔑 #{bill.id} {bill.name} will match payments to: {', '.join(words)}"
 
 
 async def queue_pdf_upload(

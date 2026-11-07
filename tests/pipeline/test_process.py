@@ -4,6 +4,7 @@ from decimal import Decimal
 import pytest
 from sqlalchemy import func, select
 
+from app.bills.schemas import BillStatus
 from app.inbound.models import InboundSource
 from app.inbound.models import InboundStatus as St
 from app.ledger.categories import Category as C
@@ -19,9 +20,9 @@ from app.ledger.schemas import (
     TxnStatus,
 )
 from app.pipeline.process import process_inbound
-from tests.factories import T0, add_inbound, make_deps
+from tests.factories import T0, add_bill, add_inbound, make_deps
 from tests.fakes import FakeRunner
-from tests.parsing.fixtures import OTP, S1, S6
+from tests.parsing.fixtures import OTP, S1, S2, S6
 
 
 async def test_known_merchant_saved_without_llm(session):
@@ -109,3 +110,21 @@ async def test_process_inbound_requires_text(session):
     inbound = await add_inbound(session, text=None)
     with pytest.raises(ValueError, match="text"):
         await process_inbound(session, inbound, make_deps())
+
+
+async def test_saved_debit_closes_matching_bill(session):
+    bill = await add_bill(
+        session,
+        name="Electricity",
+        amount_due=Decimal("1250.50"),
+        payee_keywords=["BESCOM"],
+    )
+    await remember_merchant(session, "BESCOM", C.BILLS)
+    inbound = await add_inbound(session, text=S2)
+    result = await process_inbound(session, inbound, make_deps())
+    assert result.paid_bill_ids == [bill.id]
+    assert len(result.outgoing) == 1
+    assert result.outgoing[0].text.startswith(
+        f"✅ ₹1,250.50 to BESCOM on Wed 4 Nov matched Electricity (#{bill.id})"
+    )
+    assert bill.status is BillStatus.PAID
