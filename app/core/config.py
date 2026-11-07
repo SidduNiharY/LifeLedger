@@ -48,6 +48,10 @@ class Settings(BaseSettings):
     max_email_bytes: int = 10_000_000
     raw_retention_days: int = 30
 
+    temporal_address: str = "temporal:7233"
+    reminder_days_before: list[int] = [7, 1, 0]
+    reminder_hour_local: int = 9
+
     @field_validator("timezone")
     @classmethod
     def _known_timezone(cls, value: str) -> str:

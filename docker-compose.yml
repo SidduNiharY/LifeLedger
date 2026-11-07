@@ -98,5 +98,29 @@ services:
       - ./data/outbox:/data/outbox
     restart: unless-stopped
 
+  temporal:
+    image: temporalio/temporal:latest
+    command: ["server", "start-dev", "--ip", "0.0.0.0", "--db-filename", "/data/temporal.db"]
+    ports: ["127.0.0.1:8233:8233"]
+    volumes: ["temporal-data:/data"]
+    restart: unless-stopped
+
+  worker:
+    build: .
+    env_file: .env
+    environment:
+      DATABASE_URL: "postgresql+asyncpg://lifeledger:${POSTGRES_PASSWORD:-lifeledger}@postgres:5432/lifeledger"
+      TEMPORAL_ADDRESS: "temporal:7233"
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    user: "1000:1000"
+    restart: unless-stopped
+    command: python -m app.workflows.worker
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      temporal:
+        condition: service_started
+
 volumes:
   pgdata: {}
+  temporal-data: {}
