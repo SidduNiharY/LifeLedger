@@ -15,8 +15,6 @@ class PdfLockedError(Exception):
 def unlock_pdf(data: bytes, passwords: Sequence[str]) -> bytes:
     try:
         with pikepdf.open(BytesIO(data)) as p:
-            if not p.is_encrypted:
-                return data
             out = BytesIO()
             p.save(out)
             return out.getvalue()
