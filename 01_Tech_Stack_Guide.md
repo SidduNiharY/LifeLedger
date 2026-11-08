@@ -187,6 +187,8 @@ Don't learn everything up front. Add tools only when the phase needs them.
 
 ## 7. Safety, isolation and the sandbox
 
+> **Updated 2026-11-08:** the full attack list (48 attacks, checked against TechRadar Brain's) and the new controls LSEC-01 to LSEC-15 are in [04_Security_Attacks_and_Defences.md](04_Security_Attacks_and_Defences.md), built in [Phase 5](docs/superpowers/plans/2026-11-08-lifeledger-phase5-security.md). They tighten parts of this section: secrets become per-service files outside the repo (not `.env`), every container gets the parser's hardening, and the webhook is reachable only through Tailscale. A second pass added LSEC-16 to LSEC-20 and the non-security gaps; those are in [05_Remaining_Gaps.md](05_Remaining_Gaps.md) and [Phase 6](docs/superpowers/plans/2026-11-08-lifeledger-phase6-gaps.md).
+
 ### 7.1 Does LifeLedger need a sandbox?
 
 A sandbox matters when the app handles **untrusted input** or **runs untrusted code**. LifeLedger never runs code from outside and never browses the web, so it does **not** need a code sandbox such as E2B. E2B would also be a step backwards here: it runs in the cloud, so your bank PDFs would leave your machine.

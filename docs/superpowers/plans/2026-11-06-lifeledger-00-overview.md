@@ -1,6 +1,6 @@
 # LifeLedger Implementation Plan: Overview
 
-**Written 2026-11-06.** This is the entry point for building LifeLedger. The work is split into four plans, one per phase. Each phase ends with software you can run and use on its own, and each phase builds on the one before it. Execute them in order.
+**Written 2026-11-06.** This is the entry point for building LifeLedger. The work is split into six plans, one per phase. Each phase ends with software you can run and use on its own, and each phase builds on the one before it. Execute them in order.
 
 | Phase | Plan | Done when |
 |---|---|---|
@@ -8,8 +8,12 @@
 | 2. Bills and renewals | [phase2-bills](2026-11-06-lifeledger-phase2-bills.md) | Bills from PDFs, emails, Google Calendar and `/addbill` get reminders 7 days, 1 day and on the due day |
 | 3. Matching and tracing | [phase3-matching](2026-11-06-lifeledger-phase3-matching.md) | Payments close bills automatically (exact match) or after your tap (probable match); AI steps are traced in Langfuse |
 | 4. Polish | [phase4-polish](2026-11-06-lifeledger-phase4-polish.md) | Morning briefing, subscription detection, MCP server for Claude, categorisation evals and red-team tests in CI |
+| 5. Security hardening | [phase5-security](2026-11-08-lifeledger-phase5-security.md) | Every gap in [04_Security_Attacks_and_Defences.md](../../../04_Security_Attacks_and_Defences.md) is closed (LSEC-01 to LSEC-15) and `scripts/security_gate.sh` prints `security gate OK` |
+| 6. Remaining gaps | [phase6-gaps](2026-11-08-lifeledger-phase6-gaps.md) | Every gap in [05_Remaining_Gaps.md](../../../05_Remaining_Gaps.md) is closed: drift and reliability fixes, refunds, cash, ignore, undo, budgets and export, LSEC-16 to LSEC-20, ops guides, and the first live acceptance run |
 
-**Spec:** [01_Tech_Stack_Guide.md](../../../01_Tech_Stack_Guide.md) · [02_Concepts_QA.md](../../../02_Concepts_QA.md) · [03_Email_Integration.md](../../../03_Email_Integration.md)
+**Spec:** [01_Tech_Stack_Guide.md](../../../01_Tech_Stack_Guide.md) · [02_Concepts_QA.md](../../../02_Concepts_QA.md) · [03_Email_Integration.md](../../../03_Email_Integration.md) · [04_Security_Attacks_and_Defences.md](../../../04_Security_Attacks_and_Defences.md) · [05_Remaining_Gaps.md](../../../05_Remaining_Gaps.md)
+
+**Order for Phases 5 and 6:** Phase 6 Tasks 1–4, then Phase 5, then Phase 6 Tasks 5–18 (see [05_Remaining_Gaps.md](../../../05_Remaining_Gaps.md) §7).
 
 ---
 
